@@ -1,7 +1,5 @@
 from copy import copy
-
 import cv2
-import dlib
 from imgui_bundle import imgui, ImVec2
 from imgui_bundle import portable_file_dialogs, immvision
 import numpy as np
@@ -11,7 +9,6 @@ from splatviz_utils.dict_utils import EasyDict
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils.easy_imgui import label, slider
 from widgets.widget import Widget
-
 from insightface import app
 
 
@@ -47,18 +44,6 @@ class KeypointDetectorInsightface:
             return detection[0].landmark_2d_106
         return []
 
-class KeypointDetectorDlib:
-    def __init__(self):
-        self.detector = dlib.get_frontal_face_detector()
-        self.predictor = dlib.shape_predictor(f"{get_project_path()}/models/shape_predictor_68_face_landmarks.dat")
-
-    def __call__(self, image):
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        rect = self.detector(gray, 1)
-        if len(rect) > 0:
-            shape = self.predictor(gray, rect[0])
-            return np.array([[p.x, p.y] for p in shape.parts()])
-        return []
 
 class Hyperparams:
     def __init__(self, name, default_value, min_value, max_value, log, dtype):
@@ -97,7 +82,6 @@ class InversionWidget(Widget):
         self.webcam.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.webcam.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         self.keypoint_detector = KeypointDetectorInsightface()
-        # self.keypoint_detector_dlib = KeypointDetectorDlib()
         self.keypoints = []
 
     @imgui_utils.scoped_by_object_id
@@ -120,8 +104,6 @@ class InversionWidget(Widget):
                 frame = frame[zoom:-zoom, 420 + zoom:-420-zoom, :]
                 img_without_annotation = copy(frame[:, ::-1, ::-1])
                 self.keypoints = self.keypoint_detector(frame)
-                # keypoints_dlib = self.keypoint_detector_dlib(frame)
-                # frame[self.keypoints.astype(int)[:, 1], self.keypoints.astype(int)[:, 0], :] = [0, 0, 255]
 
                 for point in self.keypoints:
                     cv2.circle(frame, tuple(point.astype(int)), 5, (0, 255, 0), cv2.FILLED)

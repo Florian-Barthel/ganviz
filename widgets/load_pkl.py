@@ -1,5 +1,7 @@
 import os
-from imgui_bundle import imgui
+from imgui_bundle import imgui, ImVec2
+from imgui_bundle._imgui_bundle import portable_file_dialogs
+
 from splatviz_utils.gui_utils import imgui_utils
 from widgets.widget import Widget
 
@@ -9,24 +11,14 @@ class LoadWidget(Widget):
         super().__init__(viz, "Load")
         self.filter = ""
         self.file_ending = file_ending
-        self.ply = self.items[0]
+        self.ply = ""
 
     @imgui_utils.scoped_by_object_id
     def __call__(self, show=True):
-        viz = self.viz
         if show:
-            _changed, self.filter = imgui.input_text("Filter", self.filter)
-            if imgui_utils.button("Browse", width=viz.button_w, enabled=True):
-                imgui.open_popup("browse_pkls_popup")
+            if imgui.button("Load pkl", ImVec2(self.viz.label_w_large, 0)):
+                files_from_dialog = portable_file_dialogs.open_file("Select Image", self.viz.gan_path, filters=[".pkl"]).result()
+                self.ply = files_from_dialog[0]
 
-            if imgui.begin_popup("browse_pkls_popup"):
-                for item in self.items:
-                    clicked = imgui.menu_item_simple(os.path.relpath(item, self.root))
-                    if clicked:
-                        self.ply = item
-                imgui.end_popup()
-
-            imgui.same_line()
-            imgui.text(self.ply)
-        viz.args.ply_file_paths = [self.ply]
-        viz.args.current_ply_names = self.ply.replace("/", "_").replace("\\", "_").replace(":", "_").replace(".", "_")
+        self.viz.args.ply_file_paths = [self.ply]
+        self.viz.args.current_ply_names = self.ply.replace("/", "_").replace("\\", "_").replace(":", "_").replace(".", "_")

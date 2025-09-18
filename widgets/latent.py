@@ -21,16 +21,7 @@ class LatentWidget(Widget):
         self.mapping_conditioning_modes = ["frontal", "zero", "current"]
         self.mapping_conditioning = 0
         self.seed = 0
-        # self.flame_params = np.zeros([53])
-        # with open("expressions.json", "r") as f:
-        #     json_dict = json.load(f)
-        #     expressions = json_dict["00001"]["exp"]
-        #     pose = json_dict["00001"]["pose"]
-        #     self.flame_params[:50] = np.array(expressions) / 4
-        #     self.flame_params[50:] = np.array(pose)[3:] * 10#
         self.pca_components = np.zeros([50])
-
-
 
     def drag(self, dx, dy):
         self.latent.x += dx
@@ -54,8 +45,7 @@ class LatentWidget(Widget):
 
             if implot.begin_plot("Latent Space", [self.viz.pane_w // 2, self.viz.pane_w // 2]):
                 implot.setup_axes_limits(-1, 1, -1, 1, True)
-                # num_steps = 10
-                # implot.plot_scatter("##fixed_points", np.arange(-1, 1, num_steps), np.arange(-1, 1, num_steps))
+
                 _changed, self.latent.x, self.latent.y, _, _, _ = implot.drag_point(0, self.latent.x, self.latent.y, imgui.ImVec4(1, 1, 1, 1), 10, out_clicked=True)
                 implot.end_plot()
             self.latent.x = np.clip(self.latent.x, -1, 1)
@@ -73,13 +63,9 @@ class LatentWidget(Widget):
             label("Seed", width=viz.label_w)
             _, self.seed = imgui.input_int("##seed", self.seed)
 
-            # for i in range(self.flame_params.shape[0]):
-            #     label(f"FLAME {i}", width=viz.label_w)
-            #     _changed, self.flame_params[i] = imgui.slider_float(f"##flame{i}", self.flame_params[i], -5.0, 5.0)
-
-            for i in range(self.pca_components.shape[0]):
-                label(f"PCA {i}", width=viz.label_w)
-                _changed, self.pca_components[i] = imgui.slider_float(f"##pca{i}", self.pca_components[i], -5.0, 5.0)
+            # for i in range(self.pca_components.shape[0]):
+            #     label(f"PCA {i}", width=viz.label_w)
+            #     _changed, self.pca_components[i] = imgui.slider_float(f"##pca{i}", self.pca_components[i], -5.0, 5.0)
 
         viz.args.truncation_psi = self.truncation_psi
         viz.args.latent_x = self.latent.x
@@ -87,6 +73,5 @@ class LatentWidget(Widget):
         viz.args.seed = self.seed
         viz.args.latent_space = self.latent_spaces[self.latent_space]
         viz.args.mapping_conditioning = self.mapping_conditioning_modes[self.mapping_conditioning]
-        # viz.args.flame_params = torch.tensor(self.flame_params[None, :], device="cuda")
         viz.args.pca_components = self.pca_components
 

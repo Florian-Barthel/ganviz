@@ -2,14 +2,15 @@ from imgui_bundle import imgui
 import numpy as np
 import torch
 import sys
-
 sys.path.append("gaussian_splatting")
+sys.path.append("gan_preprocessing")
+sys.path.append("gan_inversion")
+
 torch.set_printoptions(precision=2, sci_mode=False)
 np.set_printoptions(precision=2)
 
 from renderer.renderer_wrapper import RendererWrapper
 from renderer.gan_renderer import GANRenderer
-
 from splatviz_utils.gui_utils import imgui_window
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils import gl_utils
@@ -63,6 +64,7 @@ class Splatviz(imgui_window.ImguiWindow):
             latent.LatentWidget(self),
             inversion.InversionWidget(self),
         ]
+        self.gan_path = gan_path
         sys.path.append(gan_path)
         renderer = GANRenderer()
 
@@ -75,6 +77,7 @@ class Splatviz(imgui_window.ImguiWindow):
         self.args = EasyDict()
         self.result = EasyDict()
         self.eval_result = ""
+        self.eval_text = ""
 
         # Initialize window.
         self.set_position(0, 0)

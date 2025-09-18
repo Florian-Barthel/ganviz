@@ -4,3 +4,6 @@
 [submodule "gan_preprocessing"]
 	path = gan_preprocessing
 	url = https://github.com/Florian-Barthel/gan_preprocessing.git
+[submodule "gan_inversion"]
+	path = gan_inversion
+	url = https://github.com/Florian-Barthel/gan_inversion.git

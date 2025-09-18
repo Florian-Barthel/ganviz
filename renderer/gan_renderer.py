@@ -5,7 +5,8 @@ import torch
 import torch.nn
 from tqdm import tqdm
 
-from Inversion import Inversion
+from gan_inversion.inversion import Inversion
+from gan_preprocessing.preprocess import Preprocessor
 from scene.gaussian_model import GaussianModel
 from gaussian_renderer import render_simple
 from renderer.base_renderer import Renderer
@@ -28,7 +29,8 @@ class GANRenderer(Renderer):
         self.last_seed = 0
 
         self.inversion_generator = None
-        self.inverter = None
+        self.inverter = Inversion()
+        self.preprocess = Preprocessor()
         self.w_inversion = torch.randn([1, 512], device=self._device)
         self.inversion_step = 0
         self.use_inversion_w = False
@@ -64,16 +66,18 @@ class GANRenderer(Renderer):
         **other_args
     ):
         slider = EasyDict(slider)
-        self.pca_latent = True
+        self.pca_latent = False
         model_changed = self.load(ply_file_paths[0])
 
         if len(inversion_images) > 0:
-            res.preprocessed_images = self.inverter.preprocess(inversion_images, target_size=self.generator.resolution)
+            preprocessed = self.preprocess(inversion_images, target_size=self.generator.resolution)
+            res.preprocessed_images = preprocessed["cropped_images"]
+            self.inverter.set_targets(images=preprocessed["cropped_images"], cams=preprocessed["cams"])
 
         if run_inversion:
-            self.w_inversion, loss = self.inverter.inversion_step(inversion_hyperparams)
+            self.w_inversion, loss = self.inverter.step_w(inversion_hyperparams)
         if run_tuning:
-            self.w_inversion, loss = self.inverter.tuning_step(tuning_hyperparams)
+            self.w_inversion, loss = self.inverter.step_pti(tuning_hyperparams)
 
         self.use_inversion_w = run_inversion or run_tuning
 
@@ -106,15 +110,6 @@ class GANRenderer(Renderer):
                     mapped_latent = self.generator.mapping(latent, mapping_camera_params, truncation_psi=truncation_psi)
                 elif latent_space == "W":
                     mapped_latent = latent[:, None, :] .repeat(1, self.generator.mapping_network.num_ws, 1)
-
-                latent_file = np.load(f"/home/barthel/projects/cgs-gan/train_segmentation/latent_mapping_dataset_hat/{int(slider.y):05d}.npz", allow_pickle=True)["arr_0"].flatten()[0]
-                mapped_latent           = torch.tensor(latent_file["w_init"], device=self.device)
-                mapped_latent_combine   = torch.tensor(latent_file["w_combine"], device=self.device)
-                mapped_latent = slider.x * mapped_latent + (1 - slider.x) * mapped_latent_combine
-
-                # cond = torch.zeros([1, 78], device=self.device, dtype=torch.float)
-                # if flame_params is not None:
-                #     cond[:, 25:] = flame_params
 
                 if self.use_inversion_w:
                     mapped_latent = self.w_inversion
@@ -186,5 +181,5 @@ class GANRenderer(Renderer):
         self.generator = copy.deepcopy(save_file["G_ema"]).eval().requires_grad_(True).to(self.device)
         self._current_pkl_file_path = pkl_file_path
         self.create_latent_map()
-        self.inverter = Inversion(self.generator, device="cuda:0", )
+        self.inverter.set_generator(self.generator)
         return True

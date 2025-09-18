@@ -9,7 +9,6 @@ from splatviz_utils.gui_utils.easy_imgui import label
 from splatviz_utils.gui_utils.easy_json import load_json, save_json
 from splatviz_utils.dict_utils import EasyDict
 from scene.cameras import CustomCam
-from renderer.gaussian_renderer import GaussianRenderer
 from scene.gaussian_model import GaussianModel
 from widgets.widget import Widget
 
@@ -95,7 +94,6 @@ class EditWidget(Widget):
     def setup_editor(self):
         language = edit.TextEditor.LanguageDefinition.python()
         custom_identifiers = {
-            "self": edit.TextEditor.Identifier(m_declaration=get_description(GaussianRenderer)),
             "gs": edit.TextEditor.Identifier(m_declaration=get_description(GaussianModel)),
             "render_cam": edit.TextEditor.Identifier(m_declaration=get_description(CustomCam)),
             "render": edit.TextEditor.Identifier(
