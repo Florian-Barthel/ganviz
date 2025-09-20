@@ -15,7 +15,7 @@
 Clone repository **recursively** in order to install glm from the diff_gaussian_rasterization package.
 
 ```bash
-git clone https://github.com/Florian-Barthel/splatviz.git --recursive
+git clone https://github.com/Florian-Barthel/ganviz.git --recursive
 ```
 
 
