@@ -11,6 +11,7 @@ from splatviz_utils.gui_utils.easy_imgui import label, slider
 from widgets.widget import Widget
 from insightface import app
 
+immvision.use_rgb_color_order()
 
 def get_crop_bound(lm):
     if len(lm) == 106:
@@ -100,7 +101,7 @@ class InversionWidget(Widget):
             if imgui.collapsing_header("Webcam"):
                 ret, frame = self.webcam.read()
 
-                zoom = 200
+                zoom = 100
                 frame = frame[zoom:-zoom, 420 + zoom:-420-zoom, :]
                 img_without_annotation = copy(frame[:, ::-1, ::-1])
                 self.keypoints = self.keypoint_detector(frame)
@@ -109,7 +110,7 @@ class InversionWidget(Widget):
                     cv2.circle(frame, tuple(point.astype(int)), 5, (0, 255, 0), cv2.FILLED)
 
                 frame = np.ascontiguousarray(frame[:, ::-1, ::-1])
-                immvision.image_display_resizable(f"webcam_image", frame, ImVec2(frame.shape[1], frame.shape[0]), is_bgr_or_bgra=False, refresh_image=True)
+                immvision.image_display_resizable(f"webcam_image", frame, ImVec2(frame.shape[1], frame.shape[0]), refresh_image=True)
                 if imgui.button("Take Image", ImVec2(viz.label_w_large, 0)):
                     self.loaded_images.append(img_without_annotation)
                     self.files_to_preprocess.append(img_without_annotation)
@@ -118,7 +119,7 @@ class InversionWidget(Widget):
             im_size = self.viz.pane_w // (len(self.loaded_images) + 1)
             for i, image in enumerate(self.loaded_images):
                 aspect_ratio = image.shape[1] / image.shape[0]
-                immvision.image_display_resizable(f"image_{i}", image, ImVec2(im_size, int(im_size / aspect_ratio)), is_bgr_or_bgra=False, refresh_image=False)
+                immvision.image_display_resizable(f"image_{i}", image, ImVec2(im_size, int(im_size / aspect_ratio)), refresh_image=False)
                 imgui.same_line(spacing=0)
 
             imgui.new_line()
@@ -128,7 +129,7 @@ class InversionWidget(Widget):
                 self.files_to_preprocess = []
 
             for i, image in enumerate(viz.preprocessed_images):
-                immvision.image_display_resizable(f"image_pre_{i}", np.ascontiguousarray(image), ImVec2(im_size, im_size), is_bgr_or_bgra=False, refresh_image=False)
+                immvision.image_display_resizable(f"image_pre_{i}", np.ascontiguousarray(image), ImVec2(im_size, im_size), refresh_image=False)
                 imgui.same_line(spacing=0)
             self.loss_settings_inversion["batch_size"].max_value = len(viz.preprocessed_images)
             self.loss_settings_tuning["batch_size"].max_value = len(viz.preprocessed_images)

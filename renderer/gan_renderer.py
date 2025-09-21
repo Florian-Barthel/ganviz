@@ -5,12 +5,12 @@ import torch
 import torch.nn
 from tqdm import tqdm
 
+from gaussian_splatting.scene.gaussian_model import GaussianModel
+from gaussian_splatting.gaussian_renderer import render_simple
+from gaussian_splatting.scene.cameras import CustomCam
 from gan_inversion.inversion import Inversion
 from gan_preprocessing.preprocess import Preprocessor
-from scene.gaussian_model import GaussianModel
-from gaussian_renderer import render_simple
 from renderer.base_renderer import Renderer
-from scene.cameras import CustomCam
 from splatviz_utils.dict_utils import EasyDict
 from gan_helper.latent_vector import LatentMapRandom, LatentMapPCA
 from gan_helper.view_conditioning import view_conditioning
@@ -75,9 +75,9 @@ class GANRenderer(Renderer):
             self.inverter.set_targets(images=preprocessed["cropped_images"], cams=preprocessed["cams"])
 
         if run_inversion:
-            self.w_inversion, loss = self.inverter.step_w(inversion_hyperparams)
+            self.w_inversion, loss = self.inverter.step_w(self.generator, inversion_hyperparams)
         if run_tuning:
-            self.w_inversion, loss = self.inverter.step_pti(tuning_hyperparams)
+            self.w_inversion, loss = self.inverter.step_pti(self.generator, tuning_hyperparams)
 
         self.use_inversion_w = run_inversion or run_tuning
 
@@ -104,7 +104,7 @@ class GANRenderer(Renderer):
         latent_changed = not torch.equal(self.last_latent, latent)
 
         with torch.no_grad():
-            if True or seed_changed or latent_changed or model_changed or truncation_psi_changed or mapping_conditioning_changed or mapping_conditioning == "current" or run_inversion or run_tuning:
+            if seed_changed or latent_changed or model_changed or truncation_psi_changed or mapping_conditioning_changed or mapping_conditioning == "current" or run_inversion or run_tuning:
                 gan_camera_params, mapping_camera_params = view_conditioning(cam_params, fov, mapping_conditioning)
                 if latent_space == "Z":
                     mapped_latent = self.generator.mapping(latent, mapping_camera_params, truncation_psi=truncation_psi)

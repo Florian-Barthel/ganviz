@@ -15,7 +15,7 @@ from splatviz_utils.gui_utils.constants import *
 
 @contextlib.contextmanager
 def change_font(font):
-    imgui.push_font(font)
+    imgui.push_font(font, font_size_base_unscaled=0.0)
     yield
     imgui.pop_font()
 

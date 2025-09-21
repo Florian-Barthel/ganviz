@@ -3,12 +3,12 @@ import numpy as np
 import torch
 import torch.nn
 
-from gan_helper.latent_vector import LatentMap
+from gan_helper.latent_vector import LatentMapRandom
 from gan_helper.view_conditioning import view_conditioning
-from scene.gaussian_model import GaussianModel
-from gaussian_renderer import render_simple
+from gaussian_splatting.scene.gaussian_model import GaussianModel
+from gaussian_splatting.gaussian_renderer import render_simple
+from gaussian_splatting.scene.cameras import CustomCam
 from renderer.base_renderer import Renderer
-from scene.cameras import CustomCam
 from splatviz_utils.dict_utils import EasyDict
 
 
@@ -20,7 +20,7 @@ class GANRenderer(Renderer):
         self.gaussian_model = GaussianModel(sh_degree=1, disable_xyz_log_activation=True)
         self.gaussian_model.active_sh_degree = 1
         self.last_gan_result = None
-        self.latent_map = LatentMap()
+        self.latent_map = LatentMapRandom()
         self.device = torch.device("cuda")
         self.last_mapping_conditioning = "frontal"
         self.last_truncation_psi = 1.0

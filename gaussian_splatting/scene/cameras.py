@@ -1,4 +1,4 @@
-from gs_utils.graphics_utils import getProjectionMatrix
+from gaussian_splatting.gs_utils.graphics_utils import getProjectionMatrix
 
 
 class CustomCam:

@@ -92,21 +92,21 @@ class EditWidget(Widget):
         self._cur_preset_name = ""
 
     def setup_editor(self):
-        language = edit.TextEditor.LanguageDefinition.python()
-        custom_identifiers = {
-            "gs": edit.TextEditor.Identifier(m_declaration=get_description(GaussianModel)),
-            "render_cam": edit.TextEditor.Identifier(m_declaration=get_description(CustomCam)),
-            "render": edit.TextEditor.Identifier(
-                m_declaration=get_description(
-                    EasyDict(render=0, viewspace_points=0, visibility_filter=0, radii=0, alpha=0, depth=0)
-                )
-            ),
-            "slider": edit.TextEditor.Identifier(m_declaration=get_description(Slider)),
-        }
-        copy_identifiers = language.m_identifiers.copy()
-        copy_identifiers.update(custom_identifiers)
-        language.m_identifiers = copy_identifiers
-        self.editor.set_language_definition(language)
+        # language = edit.TextEditor.LanguageDefinition.python()
+        # custom_identifiers = {
+        #     "gs": edit.TextEditor.Identifier(m_declaration=get_description(GaussianModel)),
+        #     "render_cam": edit.TextEditor.Identifier(m_declaration=get_description(CustomCam)),
+        #     "render": edit.TextEditor.Identifier(
+        #         m_declaration=get_description(
+        #             EasyDict(render=0, viewspace_points=0, visibility_filter=0, radii=0, alpha=0, depth=0)
+        #         )
+        #     ),
+        #     "slider": edit.TextEditor.Identifier(m_declaration=get_description(Slider)),
+        # }
+        # copy_identifiers = language.m_identifiers.copy()
+        # copy_identifiers.update(custom_identifiers)
+        # language.m_identifiers = copy_identifiers
+        # self.editor.set_language_definition(language)
         self.editor.set_text(self.presets["Default"]["edit_text"])
 
     @imgui_utils.scoped_by_object_id

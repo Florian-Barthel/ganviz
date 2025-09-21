@@ -16,6 +16,7 @@ Clone repository **recursively** in order to install glm from the diff_gaussian_
 
 ```bash
 git clone https://github.com/Florian-Barthel/ganviz.git --recursive
+cd ganviz
 ```
 
 
@@ -25,33 +26,39 @@ Create environment with <b>conda</b>:
 
 ```bash
 conda env create -f environment.yml
-conda activate gs-view
+conda activate ganviz
 
 git clone --recursive https://github.com/ashawkey/diff-gaussian-rasterization
 pip install ./diff-gaussian-rasterization
+pip install -e "git+https://github.com/deepinsight/insightface.git#egg=insightface&subdirectory=python-package"
 ```
 
 Alternatively, use <b>micromamba</b>:
 
 ```bash
 micromamba env create --file environment.yml --channel-priority flexible -y
-micromamba activate gs-view
+micromamba activate ganviz
 
 git clone --recursive https://github.com/ashawkey/diff-gaussian-rasterization
 pip install ./diff-gaussian-rasterization
+pip install -e "git+https://github.com/deepinsight/insightface.git#egg=insightface&subdirectory=python-package"
+conda install lpips
+pip install gdown
+pip install onnxruntime
 ```
 
-Finally run the install script for the GAN preprocessor:
+
+Install CGS-GAN:
 ```bash
-cd gan_preprocessing
-./build.sh
+git clone https://github.com/fraunhoferhhi/cgs_gan.git --single-branch
 ```
+Download a pretrained checkpoint:
+[ffhq_512.pkl](https://huggingface.co/Fubei/cgs_gan_checkpoints/resolve/main/ffhqc_512.pkl?download=true)
 
 ## Launch
 
-First check out the cgs-gan repository: <a href="https://github.com/fraunhoferhhi/cgs-gan">https://github.com/fraunhoferhhi/cgs-gan</a> and download the network checkpoints: [ffhq_512.pkl](https://huggingface.co/anonym892312603527/neurips25/resolve/main/models/ffhq_512.pkl?download=true), [ffhq_1024.pkl](https://huggingface.co/anonym892312603527/neurips25/resolve/main/models/ffhqc_1024.pkl?download=true) or [ffhq_2048.pkl](https://huggingface.co/anonym892312603527/neurips25/resolve/main/models/ffhqc_2048.pkl?download=true). Then run the main file and specify the path to the cgs-gan repository:
 ```bash
-python run_main.py --gan_path=path/to/cgs-gan
+python run_main.py
 ```
 
 In some cases you will have to add this variable so that opengl uses the correct version:
