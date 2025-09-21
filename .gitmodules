@@ -7,3 +7,6 @@
 [submodule "gan_inversion"]
 	path = gan_inversion
 	url = https://github.com/Florian-Barthel/gan_inversion.git
+[submodule "diff-gaussian-rasterization"]
+	path = diff-gaussian-rasterization
+	url = https://github.com/ashawkey/diff-gaussian-rasterization

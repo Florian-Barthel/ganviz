@@ -10,7 +10,7 @@
 
 ## Install
 
-### 1. Download
+### 1. Clone
 
 Clone repository **recursively** in order to install glm from the diff_gaussian_rasterization package.
 
@@ -20,39 +20,21 @@ cd ganviz
 ```
 
 
-### 2. Install
+### 2. Install Environment
 
-Create environment with <b>conda</b>:
+Create environment with [uv](https://docs.astral.sh/uv/getting-started/installation/):
 
-```bash
-conda env create -f environment.yml
-conda activate ganviz
 
-git clone --recursive https://github.com/ashawkey/diff-gaussian-rasterization
-pip install ./diff-gaussian-rasterization
-pip install -e "git+https://github.com/deepinsight/insightface.git#egg=insightface&subdirectory=python-package"
+```shell
+uv sync
+uv pip install .\diff-gaussian-rasterization\ --no-build-isolation
 ```
 
-Alternatively, use <b>micromamba</b>:
-
-```bash
-micromamba env create --file environment.yml --channel-priority flexible -y
-micromamba activate ganviz
-
-git clone --recursive https://github.com/ashawkey/diff-gaussian-rasterization
-pip install ./diff-gaussian-rasterization
-pip install -e "git+https://github.com/deepinsight/insightface.git#egg=insightface&subdirectory=python-package"
-conda install lpips
-pip install gdown
-pip install onnxruntime
-```
-
-
-Install CGS-GAN:
+Clone CGS-GAN:
 ```bash
 git clone https://github.com/fraunhoferhhi/cgs_gan.git --single-branch
 ```
-Download a pretrained checkpoint:
+and download a pretrained checkpoint:
 [ffhq_512.pkl](https://huggingface.co/Fubei/cgs_gan_checkpoints/resolve/main/ffhqc_512.pkl?download=true)
 
 ## Launch
@@ -77,25 +59,8 @@ Invert your own 3D head like in this [video](https://www.linkedin.com/posts/flor
 
 ## ⭐ Recent Features
 
-**_Version 1.2.0_**
-
-- 2025-05-26: Added GAN mode.
-
-**_Version 1.1.0_**
-
-- 2024-08-12: Added a new Training Widget to inspect live training stats and to pause training
-- 2024-08-11: Attach to a running 3DGS training
-- 2024-08-10: Refactor rendering class for easier addition of new renderer
-- 2024-08-07: Better Mouse Control (translate with middle mouse button)
-- 2024-08-05: Allow editing of existing sliders
-- 2024-07-30: Store slider values in presets
-- 2024-07-28: New Performance Widget
-- 2024-07-28: Editor now highlights special variables (gs, self, slider) and gives tooltips
-
-**_Version 1.0.0_**
-
-- 2024-07-12: Rebuild the whole application with imgui_bundle
-- 2024-07-05: Compare two or more Gaussian Splatting scenes side by side
+- 2025-09-21: Inversion Tool
+- 2025-09-21: Latent Space widget
 
 ## Contribute
 
