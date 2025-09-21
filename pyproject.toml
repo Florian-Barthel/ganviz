@@ -1,0 +1,41 @@
+[project]
+name = "ganviz"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "albucore==0.0.16",
+  "click>=8.3.0",
+  "gdown>=5.2.0",
+  "glfw>=2.10.0",
+  "gputil>=1.4.0",
+  "imagecodecs[all]==2025.8.2",
+  "imgui==2.0.0",
+  "imgui-bundle==1.92.3",
+  "insightface>=0.7.3",
+  "lpips>=0.1.4",
+  "ninja>=1.13.0",
+  "numpy>=2.3.3",
+  "onnxruntime>=1.22.1",
+  "opencv-python>=4.11.0.86",
+  "pillow>=11.3.0",
+  "plyfile>=1.1.2",
+  "pynvml>=13.0.1",
+  "pyopengl>=3.1.10",
+  "requests>=2.32.5",
+  "scipy>=1.16.2",
+  "torch>=2.5",
+  "tqdm>=4.67.1",
+]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu118", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
