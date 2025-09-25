@@ -74,13 +74,14 @@ For reformating code please use [black](https://github.com/psf/black) with --lin
 If you find this viewer useful, please consider citing our work:
 
 ```
-@misc{barthel2024gaussian,
-    title={Gaussian Splatting Decoder for 3D-aware Generative Adversarial Networks}, 
-    author={Florian Barthel and Arian Beckmann and Wieland Morgenstern and Anna Hilsmann and Peter Eisert},
-    year={2024},
-    eprint={2404.10625},
-    archivePrefix={arXiv},
-    primaryClass={cs.CV}
+@misc{barthel2025cgsgan3dconsistentgaussian,
+      title={CGS-GAN: 3D Consistent Gaussian Splatting GANs for High Resolution Human Head Synthesis}, 
+      author={Florian Barthel and Wieland Morgenstern and Paul Hinzer and Anna Hilsmann and Peter Eisert},
+      year={2025},
+      eprint={2505.17590},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2505.17590}, 
 }
 ```
 
