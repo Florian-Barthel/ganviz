@@ -74,7 +74,7 @@ For reformating code please use [black](https://github.com/psf/black) with --lin
 If you find this viewer useful, please consider citing our work:
 
 ```
-@misc{barthel2025cgsgan3dconsistentgaussian,
+@misc{barthel2025cgsgan,
       title={CGS-GAN: 3D Consistent Gaussian Splatting GANs for High Resolution Human Head Synthesis}, 
       author={Florian Barthel and Wieland Morgenstern and Paul Hinzer and Anna Hilsmann and Peter Eisert},
       year={2025},
