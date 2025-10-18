@@ -118,7 +118,7 @@ class GANRenderer(Renderer):
                 self.extract_gaussians(gan_result)
 
         # edit 3DGS scene
-        gs = self.gaussian_model
+        gs = copy.deepcopy(self.gaussian_model)
         exec(edit_text)
 
         # render 3DGS scene

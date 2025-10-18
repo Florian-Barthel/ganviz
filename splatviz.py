@@ -163,12 +163,15 @@ class Splatviz(imgui_window.ImguiWindow):
                 outline=2,
             )
             tex.draw(pos=pos, align=0.5, rint=True, color=1)
+
         if "eval" in self.result:
             self.eval_result = self.result.eval
-        if "preprocessed_images" in self.result:
-            self.preprocessed_images = self.result.preprocessed_images
         else:
             self.eval_result = None
+
+        if "preprocessed_images" in self.result:
+            self.preprocessed_images = self.result.preprocessed_images
+
 
         # End frame.
         self._adjust_font_size()
