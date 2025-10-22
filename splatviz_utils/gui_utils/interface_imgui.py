@@ -6,6 +6,25 @@ from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils.easy_imgui import label, slider
 
 
+
+class CheckboxInput:
+    def __init__(self, viz, name, value=False, add_to_args=False):
+        self.viz = viz
+        self.name = name
+        self.value = value
+        self.format = format
+        self.add_to_args = add_to_args
+        if self.add_to_args:
+            setattr(self.viz.args, self.name, self.value)
+
+    def __call__(self):
+        label(self.name, self.viz.label_w)
+        changed, self.value = imgui.checkbox("##" + self.name + "_checkbox", self.value)
+        if self.add_to_args:
+            setattr(self.viz.args, self.name, self.value)
+        return changed
+
+
 class InputInt:
     def __init__(
         self,
@@ -210,3 +229,6 @@ class LatentSpace:
         if self.add_to_args:
             setattr(self.viz.args, self.name + self.name_x, self.x)
             setattr(self.viz.args, self.name + self.name_y, self.y)
+
+
+

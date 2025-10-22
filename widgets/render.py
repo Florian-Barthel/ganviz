@@ -1,8 +1,6 @@
-import torch
-from imgui_bundle import imgui
 import cv2
 from splatviz_utils.gui_utils import imgui_utils
-from splatviz_utils.gui_utils.easy_imgui import label
+from splatviz_utils.gui_utils.interface_imgui import InputInt, InputTensor, CheckboxInput, Combo
 from widgets.widget import Widget
 
 colormaps = [
@@ -37,50 +35,35 @@ class RenderWidget(Widget):
         self.render_alpha = False
         self.render_depth = False
         self.render_gan_image = False
-        self.resolution = 512
-        self.background_color = torch.tensor([1.0, 1.0, 1.0])
-        self.img_normalize = False
         self.current_colormap = 0
         self.colormap_dict = dict(colormaps)
         self.colormaps_names = [key for key, _ in colormaps]
         self.invert = False
 
+        self.resolution_input = InputInt(viz, "resolution", value=512, add_to_args=True)
+        self.background_color_input = InputTensor(viz, "background_color", value=[1.0, 1.0, 1.0], add_to_args=True)
+        self.img_normalize_checkbox = CheckboxInput(viz, "img_normalize", value=False, add_to_args=True)
+        self.invert_checkbox = CheckboxInput(viz, "invert", value=False, add_to_args=True)
+        self.render_alpha_checkbox = CheckboxInput(viz, "render_alpha", value=False, add_to_args=True)
+        self.render_depth_checkbox = CheckboxInput(viz, "render_depth", value=False, add_to_args=True)
+        self.colormap_combo = Combo(viz, "colormap", self.colormaps_names)
+
+
     @imgui_utils.scoped_by_object_id
     def __call__(self, show=True, decoder=False):
         viz = self.viz
         if show:
-            label("Resolution", viz.label_w)
-            _changed, self.resolution = imgui.input_int("##Resolution", self.resolution, 64)
+            self.resolution_input()
+            self.background_color_input()
+            self.img_normalize_checkbox()
+            self.invert_checkbox()
+            alpha_changed = self.render_alpha_checkbox()
+            depth_changed = self.render_depth_checkbox()
+            self.colormap_combo()
 
-            label("Background Color", viz.label_w)
-            _changed, background_color = imgui.color_edit3("##background_color_edit", self.background_color.tolist())
-            if _changed:
-                self.background_color = torch.tensor(background_color)
+            if self.render_alpha_checkbox.value and alpha_changed:
+                self.render_depth_checkbox.value = False
+            if self.render_depth_checkbox.value and depth_changed:
+                self.render_alpha_checkbox.value = False
 
-            label("Normalize", viz.label_w)
-            _changed, self.img_normalize = imgui.checkbox("##Normalize", self.img_normalize)
-
-            label("Render Alpha", viz.label_w)
-            alpha_changed, self.render_alpha = imgui.checkbox("##RenderAlpha", self.render_alpha)
-
-            label("Render Depth", viz.label_w)
-            depth_changed, self.render_depth = imgui.checkbox("##RenderDepth", self.render_depth)
-
-            label("Invert Colors", viz.label_w)
-            depth_changed, self.invert = imgui.checkbox("##invert", self.invert)
-
-            label("Colormap", viz.label_w)
-            _, self.current_colormap = imgui.combo("##colormap", self.current_colormap, self.colormaps_names)
-
-            if self.render_alpha and alpha_changed:
-                self.render_depth = False
-            if self.render_depth and depth_changed:
-                self.render_alpha = False
-
-        viz.args.background_color = self.background_color
-        viz.args.resolution = self.resolution
-        viz.args.render_alpha = self.render_alpha
-        viz.args.render_depth = self.render_depth
-        viz.args.colormap = self.colormap_dict[self.colormaps_names[self.current_colormap]]
-        viz.args.invert = self.invert
-        viz.args.img_normalize = self.img_normalize
+        viz.args.colormap = self.colormap_dict[self.colormap_combo.value]
