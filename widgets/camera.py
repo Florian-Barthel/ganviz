@@ -2,7 +2,6 @@ from imgui_bundle import imgui
 import torch
 import numpy as np
 
-from splatviz_utils.gui_utils.easy_imgui import label, slider, checkbox
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.dict_utils import EasyDict
 from splatviz_utils.cam_utils import (
@@ -11,39 +10,41 @@ from splatviz_utils.cam_utils import (
     get_origin,
     normalize_vecs,
 )
+from splatviz_utils.gui_utils.interface_imgui import Combo, Slider, InputTensor, InputFloat
 from widgets.widget import Widget
 
 
 class CamWidget(Widget):
-    def __init__(self, viz, fov=60, radius=1, up_direction=-1, device="cuda"):
+    def __init__(self, viz, fov=12, radius=2.7, up_direction=1, device="cuda"):
         super().__init__(viz, "Camera")
         self.device = device
 
         # cam params
-        self.fov = fov
-        self.radius = radius
-        self.lookat_point = torch.tensor((0.0, 0.0, 0.0), device=device)
         self.cam_pos = torch.tensor([0.0, 0.0, -1.0], device=device)
-        self.up_vector = torch.tensor([0.0, up_direction, 0.0], device=device)
         self.forward = torch.tensor([0.0, 0.0, 1.0], device=device)
 
         # controls
-        self.pose = EasyDict(yaw=np.pi, pitch=0)
-        self.invert_x = False
-        self.invert_y = False
-        self.move_speed = 0.02
-        self.wasd_move_speed = 0.1
-        self.drag_speed = 0.005
-        self.rotate_speed = 0.002
-        self.control_modes = ["Orbit", "WASD"]
-        self.current_control_mode = 0
         self.last_drag_delta = imgui.ImVec2(0, 0)
 
         # momentum
         self.momentum_x = 0.0
         self.momentum_y = 0.0
-        self.momentum_dropoff = 0.8
-        self.momentum = 0.3
+
+        # cam control
+        self.cam_mode_combo = Combo(viz, "camera_mode", ["Orbit", "WASD"])
+        self.move_speed_slider = Slider(viz, "move_speed", 0.1, 0.001, 1, log=True)
+        self.drag_speed_slider = Slider(viz, "drag_speed", 0.002, 0.001, 0.1, log=True)
+        self.momentum_slider = Slider(viz, "momentum", 0.3, 0.0, 0.999)
+        self.momentum_dropoff_slider = Slider(viz, "momentum_dropoff", 0.8, 0.0, 1.0)
+        self.rotate_speed_slider = Slider(viz, "rotate_speed", 0.005, 0.002, 0.1, log=True)
+
+        # cam matrix
+        self.up_vector_tensor_input = InputTensor(viz, "up_vector", [0.0, up_direction, 0.0], device=device)
+        self.fov_slider = Slider(viz, "fov", fov, 1, 180, format="%.2f °", add_to_args=True, with_input_field=True)
+        self.yaw_input = InputFloat(viz, "yaw", np.pi)
+        self.pitch_input = InputFloat(viz, "pitch", 0)
+        self.radius_slider = Slider(viz, "radius", radius, 20, with_input_field=True)
+        self.lookat_point_tensor = InputTensor(viz, "lookat_point", [0.0, 0.0, 0.0], device=device)
 
     @imgui_utils.scoped_by_object_id
     def __call__(self, show: bool):
@@ -54,76 +55,47 @@ class CamWidget(Widget):
         self.handle_wasd()
 
         if show:
-
             imgui.text("Camera Controls")
-            label("Camera Mode", viz.label_w)
-            _, self.current_control_mode = imgui.combo("##cam_modes", self.current_control_mode, self.control_modes)
-
-            if self.control_modes[self.current_control_mode] == "WASD":
-                label("Move Speed", viz.label_w)
-                self.wasd_move_speed = slider(self.wasd_move_speed, "move_speed", 0.001, 1, log=True)
-
-            label("Drag Speed", viz.label_w)
-            self.drag_speed = slider(self.drag_speed, "drag_speed", 0.001, 0.1, log=True)
-
-            label("Momentum", viz.label_w)
-            self.momentum = slider(self.momentum, "momentum", 0.0, 0.999)
-
-            label("Momentum drop-off", viz.label_w)
-            self.momentum_dropoff = slider(self.momentum_dropoff, "momentum_dropoff", 0.0, 1.0)
-
-            label("Rotate Speed", viz.label_w)
-            self.rotate_speed = slider(self.rotate_speed, "rot_speed", 0.001, 0.1, log=True)
-
-            label("Invert X", viz.label_w)
-            self.invert_x = checkbox(self.invert_x, "invert_x")
-
-            label("Invert Y", viz.label_w)
-            self.invert_y = checkbox(self.invert_y, "invert_y")
+            self.cam_mode_combo()
+            if self.cam_mode_combo.value == "WASD":
+                self.move_speed_slider()
+            self.drag_speed_slider()
+            self.momentum_slider()
+            self.momentum_dropoff_slider()
+            self.rotate_speed_slider()
 
             imgui.text("\nCamera Matrix")
-
             imgui.push_item_width(200)
-            label("Up Vector", viz.label_w)
-            _changed, up_vector_tuple = imgui.input_float3("##up_vector", v=self.up_vector.tolist(), format="%.1f")
-            if _changed:
-                self.up_vector = torch.tensor(up_vector_tuple, device=self.device)
+            self.up_vector_tensor_input()
             imgui.same_line()
             if imgui_utils.button("Set current direction", width=viz.button_large_w):
-                self.up_vector = -self.forward
-                self.pose.yaw = 0
-                self.pose.pitch = 0
+                self.up_vector_tensor_input.value = -self.forward
+                self.yaw_input.value = 0
+                self.pitch_input.value = 0
             imgui.same_line()
             if imgui_utils.button("Flip", width=viz.button_w):
-                self.up_vector = -self.up_vector
+                self.up_vector_tensor_input.value *= -1
+            self.fov_slider()
 
-            label("FOV", viz.label_w)
-            self.fov = slider(self.fov, "##fov", 1, 180, format="%.2f °")
-            imgui.same_line()
-            changed, self.fov = imgui.input_float("##fov_input", self.fov)
+            if self.cam_mode_combo.value == "Orbit":
+                self.yaw_input()
+                self.pitch_input()
 
-            if self.control_modes[self.current_control_mode] == "Orbit":
-                label("Camera Pos (yaw, pitch)", viz.label_w)
-                _, (self.pose.yaw, self.pose.pitch) = imgui.input_float2("##yaw_ptich", [self.pose.yaw, self.pose.pitch], format="%.1f")
-
-                label("Radius", viz.label_w)
-                self.radius = slider(self.radius, "##radius", 1, 20, format="%.2f")
-                imgui.same_line()
-                changed, self.radius = imgui.input_float("##radius_input", self.radius)
-
+                self.radius_slider()
                 imgui.same_line()
                 if imgui_utils.button("Set to xyz stddev", width=viz.button_large_w) and "std_xyz" in viz.result.keys():
-                    self.radius = viz.result.std_xyz.item()
+                    self.radius_slider.value = viz.result.std_xyz.item()
 
-                label("Look at Point", viz.label_w)
-                _, look_at_point_tuple = imgui.input_float3("##lookat", self.lookat_point.tolist(), format="%.1f")
-                self.lookat_point = torch.tensor(look_at_point_tuple, device=self.device)
+                self.lookat_point_tensor()
                 imgui.same_line()
                 if imgui_utils.button("Set to xyz mean", width=viz.button_large_w) and "mean_xyz" in viz.result.keys():
-                    self.lookat_point = viz.result.mean_xyz
+                    self.lookat_point_tensor.value = viz.result.mean_xyz
             imgui.pop_item_width()
 
-        self.cam_params = create_cam2world_matrix(self.forward, self.cam_pos, self.up_vector)[0]
+
+        self.cam_params = create_cam2world_matrix(self.forward, self.cam_pos, self.up_vector_tensor_input.value)[0]
+        viz.args.cam_params = self.cam_params
+
         if show:
             imgui.text("\nExtrinsics Matrix")
             imgui.input_float4("##extr0", self.cam_params.cpu().numpy().tolist()[0])
@@ -131,26 +103,14 @@ class CamWidget(Widget):
             imgui.input_float4("##extr2", self.cam_params.cpu().numpy().tolist()[2])
             imgui.input_float4("##extr3", self.cam_params.cpu().numpy().tolist()[3])
 
-        viz.args.yaw = self.pose.yaw
-        viz.args.pitch = self.pose.pitch
-        viz.args.fov = self.fov
-        viz.args.cam_params = self.cam_params
-
-        # params for the video widget
-        viz.args.lookat_point = self.lookat_point
-        viz.args.up_vector = self.up_vector
-
     def handle_dragging_in_window(self, x, y, width, height):
-        x_dir = -1 if self.invert_x else 1
-        y_dir = -1 if self.invert_y else 1
-
         if imgui.is_mouse_dragging(0):  # left mouse button
             new_delta = imgui.get_mouse_drag_delta(0)
             if imgui_utils.did_drag_start_in_window(x, y, width, height, new_delta):
                 delta = new_delta - self.last_drag_delta
                 self.last_drag_delta = new_delta
-                self.momentum_x = x_dir * delta.x * self.rotate_speed * (1 - self.momentum) + (self.momentum_x * self.momentum)
-                self.momentum_y = y_dir * delta.y * self.rotate_speed * (1 - self.momentum) + (self.momentum_y * self.momentum)
+                self.momentum_x = delta.x * self.rotate_speed_slider.value * (1 - self.momentum_slider.value) + (self.momentum_x * self.momentum_slider.value)
+                self.momentum_y = delta.y * self.rotate_speed_slider.value * (1 - self.momentum_slider.value) + (self.momentum_y * self.momentum_slider.value)
 
         elif imgui.is_mouse_dragging(2) or imgui.is_mouse_dragging(1):  # right mouse button or middle mouse button
             new_delta = imgui.get_mouse_drag_delta(2)
@@ -158,73 +118,65 @@ class CamWidget(Widget):
                 delta = new_delta - self.last_drag_delta
                 self.last_drag_delta = new_delta
 
-                right = torch.linalg.cross(self.forward, self.up_vector)
+                right = torch.linalg.cross(self.forward, self.up_vector_tensor_input.value)
                 right = right / torch.linalg.norm(right)
                 cam_up = torch.linalg.cross(right, self.forward)
                 cam_up = cam_up / torch.linalg.norm(cam_up)
 
-                x_change = x_dir * right * -delta.x * self.drag_speed
-                y_change = y_dir * cam_up * delta.y * self.drag_speed
+                x_change = right * -delta.x * self.drag_speed_slider.value
+                y_change = cam_up * delta.y * self.drag_speed_slider.value
                 self.cam_pos += x_change
                 self.cam_pos += y_change
-                if self.control_modes[self.current_control_mode] == "Orbit":
-                    self.lookat_point += x_change
-                    self.lookat_point += y_change
+                if self.cam_mode_combo.value == "Orbit":
+                    self.lookat_point_tensor.value += x_change
+                    self.lookat_point_tensor.value += y_change
         else:
             self.last_drag_delta = imgui.ImVec2(0, 0)
 
-        self.pose.yaw += self.momentum_x
-        self.pose.pitch += self.momentum_y
-        self.momentum_x *= self.momentum_dropoff
-        self.momentum_y *= self.momentum_dropoff
-        self.pose.pitch = np.clip(self.pose.pitch, -np.pi / 2, np.pi / 2)
+        self.yaw_input.value += self.momentum_x
+        self.pitch_input.value += self.momentum_y
+        self.momentum_x *= self.momentum_dropoff_slider.value
+        self.momentum_y *= self.momentum_dropoff_slider.value
+        self.pitch_input.value = np.clip(self.pitch_input.value, -np.pi / 2, np.pi / 2)
 
     def handle_wasd(self):
-        if self.control_modes[self.current_control_mode] == "WASD":
+        if self.cam_mode_combo.value == "WASD":
             self.forward = get_forward_vector(
                 lookat_position=self.cam_pos,
-                horizontal_mean=self.pose.yaw + np.pi / 2,
-                vertical_mean=self.pose.pitch + np.pi / 2,
+                horizontal_mean=self.yaw_input.value + np.pi / 2,
+                vertical_mean=self.pitch_input.value + np.pi / 2,
                 radius=0.01,
-                up_vector=self.up_vector,
+                up_vector=self.up_vector_tensor_input.value,
             )
-            self.sideways = torch.linalg.cross(self.forward, self.up_vector)
+            self.sideways = torch.linalg.cross(self.forward, self.up_vector_tensor_input.value)
             if imgui.is_key_down(imgui.Key.up_arrow) or "w" in self.viz.current_pressed_keys:
-                self.cam_pos += self.forward * self.wasd_move_speed
+                self.cam_pos += self.forward * self.move_speed_slider.value
             if imgui.is_key_down(imgui.Key.left_arrow) or "a" in self.viz.current_pressed_keys:
-                self.cam_pos -= self.sideways * self.wasd_move_speed
+                self.cam_pos -= self.sideways * self.move_speed_slider.value
             if imgui.is_key_down(imgui.Key.down_arrow) or "s" in self.viz.current_pressed_keys:
-                self.cam_pos -= self.forward * self.wasd_move_speed
+                self.cam_pos -= self.forward * self.move_speed_slider.value
             if imgui.is_key_down(imgui.Key.right_arrow) or "d" in self.viz.current_pressed_keys:
-                self.cam_pos += self.sideways * self.wasd_move_speed
+                self.cam_pos += self.sideways * self.move_speed_slider.value
             if "q" in self.viz.current_pressed_keys:
-                self.cam_pos += self.up_vector * self.wasd_move_speed
+                self.cam_pos += self.up_vector_tensor_input.value * self.move_speed_slider.value
             if "e" in self.viz.current_pressed_keys:
-                self.cam_pos -= self.up_vector * self.wasd_move_speed
+                self.cam_pos -= self.up_vector_tensor_input.value * self.move_speed_slider.value
 
-        elif self.control_modes[self.current_control_mode] == "Orbit":
+        elif self.cam_mode_combo.value == "Orbit":
             self.cam_pos = get_origin(
-                self.pose.yaw + np.pi / 2,
-                self.pose.pitch + np.pi / 2,
-                self.radius,
-                self.lookat_point,
-                up_vector=self.up_vector,
+                self.yaw_input.value + np.pi / 2,
+                self.pitch_input.value + np.pi / 2,
+                self.radius_slider.value,
+                self.lookat_point_tensor.value,
+                up_vector=self.up_vector_tensor_input.value,
             )
-            self.forward = normalize_vecs(self.lookat_point - self.cam_pos)
-            if imgui.is_key_down(imgui.Key.up_arrow) or "w" in self.viz.current_pressed_keys:
-                self.pose.pitch += self.move_speed
-            if imgui.is_key_down(imgui.Key.left_arrow) or "a" in self.viz.current_pressed_keys:
-                self.pose.yaw += self.move_speed
-            if imgui.is_key_down(imgui.Key.down_arrow) or "s" in self.viz.current_pressed_keys:
-                self.pose.pitch -= self.move_speed
-            if imgui.is_key_down(imgui.Key.right_arrow) or "d" in self.viz.current_pressed_keys:
-                self.pose.yaw -= self.move_speed
+            self.forward = normalize_vecs(self.lookat_point_tensor.value - self.cam_pos)
 
     def handle_mouse_wheel(self):
         mouse_pos = imgui.get_io().mouse_pos
         if mouse_pos.x >= self.viz.pane_w:
             wheel = imgui.get_io().mouse_wheel
-            if self.control_modes[self.current_control_mode] == "WASD":
-                self.cam_pos += self.forward * self.move_speed * wheel
-            elif self.control_modes[self.current_control_mode] == "Orbit":
-                self.radius -= wheel / 10
+            if self.cam_mode_combo.value == "WASD":
+                self.cam_pos += self.forward * self.move_speed_slider.value * wheel
+            elif self.cam_mode_combo.value == "Orbit":
+                self.radius_slider.value -= wheel / 10

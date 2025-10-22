@@ -4,34 +4,14 @@ from imgui_bundle import imgui, ImVec2
 from imgui_bundle import portable_file_dialogs, immvision
 import numpy as np
 from PIL import Image
+from insightface import app
 
 from splatviz_utils.dict_utils import EasyDict
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils.easy_imgui import label, slider
 from widgets.widget import Widget
-from insightface import app
 
 immvision.use_rgb_color_order()
-
-def get_crop_bound(lm):
-    if len(lm) == 106:
-        left_e = lm[38]
-        right_e = lm[88]
-        nose = lm[80]
-        left_m = lm[52]
-        right_m = lm[61]
-        center = (lm[9] + lm[25]) * 0.5
-    elif len(lm) == 68:
-        left_e = np.mean(lm[36:42], axis=0)
-        right_e = np.mean(lm[42:48], axis=0)
-        nose = lm[33]
-        left_m = lm[48]
-        right_m = lm[54]
-        center = (lm[0] + lm[16]) * 0.5
-    else:
-        raise ValueError(f"Unknown type of keypoints with a length of {len(lm)}")
-
-    return [left_e, right_e, nose, left_m, right_m, center]
 
 
 class KeypointDetectorInsightface:
@@ -54,7 +34,6 @@ class Hyperparams:
         self.max_value = max_value
         self.log = log
         self.dtype = dtype
-
 
 
 class InversionWidget(Widget):

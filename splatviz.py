@@ -34,6 +34,12 @@ class Splatviz(imgui_window.ImguiWindow):
         self.code_font_path = "resources/fonts/jetbrainsmono/JetBrainsMono-Regular.ttf"
         self.regular_font_path = "resources/fonts/source_sans_pro/SourceSansPro-Regular.otf"
 
+        # Widget interface.
+        self.result = EasyDict()
+        self.eval_result = ""
+        self.eval_text = ""
+        self.args = EasyDict()
+
         super().__init__(
             title="splatviz",
             window_width=1920,
@@ -54,7 +60,7 @@ class Splatviz(imgui_window.ImguiWindow):
 
         self.widgets = [
             load_pkl.LoadWidget(self, file_ending=".pkl"),
-            camera.CamWidget(self, fov=12, radius=2.7, up_direction=1),
+            camera.CamWidget(self),
             performance.PerformanceWidget(self),
             save.CaptureWidget(self),
             render.RenderWidget(self),
@@ -67,16 +73,9 @@ class Splatviz(imgui_window.ImguiWindow):
         sys.path.append(gan_path)
         renderer = GANRenderer()
 
-
         self.renderer = RendererWrapper(renderer, update_all_the_time)
         self._tex_img = None
         self._tex_obj = None
-
-        # Widget interface.
-        self.args = EasyDict()
-        self.result = EasyDict()
-        self.eval_result = ""
-        self.eval_text = ""
 
         # Initialize window.
         self.set_position(0, 0)
@@ -110,7 +109,6 @@ class Splatviz(imgui_window.ImguiWindow):
 
     def draw_frame(self):
         self.begin_frame()
-        self.args = EasyDict()
         self._set_sizes()
 
         # Control pane
@@ -171,7 +169,6 @@ class Splatviz(imgui_window.ImguiWindow):
 
         if "preprocessed_images" in self.result:
             self.preprocessed_images = self.result.preprocessed_images
-
 
         # End frame.
         self._adjust_font_size()

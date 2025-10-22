@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-
+from typing import Any
 
 def equal_dicts(dict1, dict2):
     if dict1 is None or dict2 is None:
@@ -13,6 +13,8 @@ def equal_dicts(dict1, dict2):
         elif isinstance(dict1[key], np.ndarray):
             if not np.array_equal(dict1[key], dict2[key]):
                 return False
+        # elif isinstance(dict1[key], list):
+        #     return equal_lists(dict1[key], dict2[key])
         else:
             if key not in dict2.keys():
                 return False
@@ -20,8 +22,26 @@ def equal_dicts(dict1, dict2):
                 return False
     return True
 
-
-from typing import Any
+#
+# def equal_lists(list1, list2):
+#     if len(list1) != len(list1):
+#         return False
+#
+#     for i in range(len(list1)):
+#         if isinstance(list1[i], torch.Tensor):
+#             if not torch.equal(list1[i], list2[i]):
+#                 return False
+#         elif isinstance(list1[i], np.ndarray):
+#             if not np.array_equal(list1[i], list2[i]):
+#                 return False
+#         elif isinstance(list1[i], list):
+#             return equal_lists(list1[i], list2[i])
+#         elif isinstance(list1[i], dict):
+#             return equal_dicts(list1[i], list2[i])
+#         else:
+#             if list1[i] != list2[i]:
+#                 return False
+#     return True
 
 
 class EasyDict(dict):
