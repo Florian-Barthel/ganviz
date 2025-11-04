@@ -25,7 +25,7 @@ from widgets import (
     save,
     latent,
     render,
-    inversion
+    # inversion
 )
 
 
@@ -67,7 +67,7 @@ class Splatviz(imgui_window.ImguiWindow):
             edit.EditWidget(self),
             eval.EvalWidget(self),
             latent.LatentWidget(self),
-            inversion.InversionWidget(self),
+            # inversion.InversionWidget(self),
         ]
         self.gan_path = gan_path
         sys.path.append(gan_path)

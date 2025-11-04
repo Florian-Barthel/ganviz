@@ -61,6 +61,8 @@ class InversionWidget(Widget):
         self.webcam = cv2.VideoCapture(0)
         self.webcam.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.webcam.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        self.webcam.set(cv2.CAP_PROP_FPS, 30)
+
         self.keypoint_detector = KeypointDetectorInsightface()
         self.keypoints = []
 
