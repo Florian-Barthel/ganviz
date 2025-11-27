@@ -30,6 +30,10 @@ class CamWidget(Widget):
         self.momentum_x = 0.0
         self.momentum_y = 0.0
 
+        # cam conditioning
+        self.cam_conditioning_combo = Combo(viz, "cam_conditioning", ["same", "cam", "cond"], add_to_args=True)
+
+
         # cam control
         self.cam_mode_combo = Combo(viz, "camera_mode", ["Orbit", "WASD"])
         self.move_speed_slider = Slider(viz, "move_speed", 0.1, 0.001, 1, log=True)
@@ -43,7 +47,10 @@ class CamWidget(Widget):
         self.fov_slider = Slider(viz, "fov", fov, 1, 180, format="%.2f °", add_to_args=True, with_input_field=True)
         self.yaw_input = InputFloat(viz, "yaw", np.pi)
         self.pitch_input = InputFloat(viz, "pitch", 0)
+        self.yaw_cond_input = InputFloat(viz, "yaw cond", np.pi)
+        self.pitch_cond_input = InputFloat(viz, "pitch cond", 0)
         self.radius_slider = Slider(viz, "radius", radius, 20, with_input_field=True)
+        self.radius_cond_slider = Slider(viz, "radius_cond", radius, 20, with_input_field=True)
         self.lookat_point_tensor = InputTensor(viz, "lookat_point", [0.0, 0.0, 0.0], device=device)
 
     @imgui_utils.scoped_by_object_id
@@ -55,6 +62,8 @@ class CamWidget(Widget):
         self.handle_wasd()
 
         if show:
+            self.cam_conditioning_combo()
+
             imgui.text("Camera Controls")
             self.cam_mode_combo()
             if self.cam_mode_combo.value == "WASD":
@@ -80,6 +89,8 @@ class CamWidget(Widget):
             if self.cam_mode_combo.value == "Orbit":
                 self.yaw_input()
                 self.pitch_input()
+                self.yaw_cond_input()
+                self.pitch_cond_input()
 
                 self.radius_slider()
                 imgui.same_line()
@@ -93,8 +104,10 @@ class CamWidget(Widget):
             imgui.pop_item_width()
 
 
+        self.cam_cond_params = create_cam2world_matrix(self.forward_cond, self.cam_pos_cond, self.up_vector_tensor_input.value)[0]
         self.cam_params = create_cam2world_matrix(self.forward, self.cam_pos, self.up_vector_tensor_input.value)[0]
         viz.args.cam_params = self.cam_params
+        viz.args.cam_cond_params = self.cam_cond_params
 
         if show:
             imgui.text("\nExtrinsics Matrix")
@@ -133,11 +146,22 @@ class CamWidget(Widget):
         else:
             self.last_drag_delta = imgui.ImVec2(0, 0)
 
-        self.yaw_input.value += self.momentum_x
-        self.pitch_input.value += self.momentum_y
+        if self.cam_conditioning_combo.value == "cam":
+            self.yaw_input.value += self.momentum_x
+            self.pitch_input.value += self.momentum_y
+            self.pitch_input.value = np.clip(self.pitch_input.value, -np.pi / 2, np.pi / 2)
+        if self.cam_conditioning_combo.value == "cond":
+            self.yaw_cond_input.value += self.momentum_x
+            self.pitch_cond_input.value += self.momentum_y
+            self.pitch_cond_input.value = np.clip(self.pitch_cond_input.value, -np.pi / 2, np.pi / 2)
+        if self.cam_conditioning_combo.value == "same":
+            self.yaw_input.value += self.momentum_x
+            self.pitch_input.value += self.momentum_y
+            self.pitch_input.value = np.clip(self.pitch_input.value, -np.pi / 2, np.pi / 2)
+            self.yaw_cond_input.value = self.yaw_input.value
+            self.pitch_cond_input.value = self.pitch_input.value
         self.momentum_x *= self.momentum_dropoff_slider.value
         self.momentum_y *= self.momentum_dropoff_slider.value
-        self.pitch_input.value = np.clip(self.pitch_input.value, -np.pi / 2, np.pi / 2)
 
     def handle_wasd(self):
         if self.cam_mode_combo.value == "WASD":
@@ -170,7 +194,16 @@ class CamWidget(Widget):
                 self.lookat_point_tensor.value,
                 up_vector=self.up_vector_tensor_input.value,
             )
+            self.cam_pos_cond = get_origin(
+                self.yaw_cond_input.value + np.pi / 2,
+                self.pitch_cond_input.value + np.pi / 2,
+                self.radius_cond_slider.value,
+                self.lookat_point_tensor.value,
+                up_vector=self.up_vector_tensor_input.value,
+            )
             self.forward = normalize_vecs(self.lookat_point_tensor.value - self.cam_pos)
+            self.forward_cond = normalize_vecs(self.lookat_point_tensor.value - self.cam_pos_cond)
+
 
     def handle_mouse_wheel(self):
         mouse_pos = imgui.get_io().mouse_pos
@@ -178,5 +211,6 @@ class CamWidget(Widget):
             wheel = imgui.get_io().mouse_wheel
             if self.cam_mode_combo.value == "WASD":
                 self.cam_pos += self.forward * self.move_speed_slider.value * wheel
+                self.cam_pos_cond += self.forward * self.move_speed_slider.value * wheel
             elif self.cam_mode_combo.value == "Orbit":
                 self.radius_slider.value -= wheel / 10

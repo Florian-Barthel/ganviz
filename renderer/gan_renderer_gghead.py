@@ -35,6 +35,7 @@ class GANRenderer(Renderer):
         resolution,
         ply_file_paths,
         cam_params,
+        cam_cond_params,
         background_color,
         img_normalize,
         latent_x,
@@ -60,13 +61,14 @@ class GANRenderer(Renderer):
         latent = self.latent_map.get_latent(latent_x, latent_y, latent_space=latent_space)
         latent_changed = not torch.equal(self.last_latent, latent)
 
-        if latent_changed or model_changed or truncation_psi_changed or mapping_conditioning_changed or mapping_conditioning == "current":
-            gan_camera_params, mapping_camera_params = view_conditioning(cam_params, fov, mapping_conditioning)
+        if True or latent_changed or model_changed or truncation_psi_changed or mapping_conditioning_changed or mapping_conditioning == "current" or run_inversion or run_tuning:
             if latent_space == "Z":
-                mapped_latent = self.generator.mapping(latent, mapping_camera_params, truncation_psi=truncation_psi)
+                cam_cond_params = view_conditioning(cam_cond_params, fov, mapping_conditioning)
+                mapped_latent = self.generator.mapping(latent, cam_cond_params, truncation_psi=truncation_psi)
             elif latent_space == "W":
-                mapped_latent = latent[:, None, :].repeat(1, self.generator.backbone.mapping.num_ws, 1)
-            gan_result = self.generator.synthesis(mapped_latent, gan_camera_params, noise_mode="const")
+                mapped_latent = latent[:, None, :].repeat(1, self.generator.mapping_network.num_ws, 1)
+
+            gan_result = self.generator.synthesis(mapped_latent, cam_params, noise_mode="const")
             self.last_latent = latent
             self.extract_gaussians(gan_result)
 

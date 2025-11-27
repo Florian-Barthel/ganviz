@@ -44,9 +44,10 @@ class GANRenderer(Renderer):
         resolution,
         ply_file_paths,
         cam_params,
+        cam_cond_params,
         current_ply_names,
         background_color,
-        latent_space="W",
+        latent_space="Z",
         img_normalize=False,
         latent_x=0.0,
         latent_y=0.0,
@@ -82,6 +83,7 @@ class GANRenderer(Renderer):
         self.use_inversion_w = run_inversion or run_tuning
 
         cam_params = cam_params.to(self.device)
+        cam_cond_params = cam_cond_params.to(self.device)
         mapping_conditioning_changed = mapping_conditioning != self.last_mapping_conditioning
         seed_changed = seed != self.last_seed
         self.last_mapping_conditioning = mapping_conditioning
@@ -104,16 +106,16 @@ class GANRenderer(Renderer):
         latent_changed = not torch.equal(self.last_latent, latent)
 
         with torch.no_grad():
-            if seed_changed or latent_changed or model_changed or truncation_psi_changed or mapping_conditioning_changed or mapping_conditioning == "current" or run_inversion or run_tuning:
-                gan_camera_params, mapping_camera_params = view_conditioning(cam_params, fov, mapping_conditioning)
+            if True or seed_changed or latent_changed or model_changed or truncation_psi_changed or mapping_conditioning_changed or mapping_conditioning == "current" or run_inversion or run_tuning:
                 if latent_space == "Z":
-                    mapped_latent = self.generator.mapping(latent, mapping_camera_params, truncation_psi=truncation_psi)
+                    cam_cond_params = view_conditioning(cam_cond_params, fov, mapping_conditioning)
+                    mapped_latent = self.generator.mapping(latent, cam_cond_params, truncation_psi=truncation_psi)
                 elif latent_space == "W":
                     mapped_latent = latent[:, None, :] .repeat(1, self.generator.mapping_network.num_ws, 1)
 
                 if self.use_inversion_w:
                     mapped_latent = self.w_inversion
-                gan_result = self.generator.synthesis(mapped_latent, gan_camera_params, render_output=False)
+                gan_result = self.generator.synthesis(mapped_latent, cam_params, render_output=False)
                 self.last_latent = latent
                 self.extract_gaussians(gan_result)
 
@@ -162,7 +164,10 @@ class GANRenderer(Renderer):
                 self.save_ply(self.gaussian_model, f"./_ply_grid/model_c{i:02d}_r{j:02d}.ply")
 
     def extract_gaussians(self, gan_result):
-        gan_model = EasyDict(gan_result["gaussian_params"][0])
+
+        gan_model = EasyDict(gan_result["gaussian_params"])
+        #gan_model = EasyDict(gan_result["gaussian_params"][0])
+
         self.gaussian_model._xyz = gan_model._xyz
         self.gaussian_model._features_dc = gan_model._features_dc
         self.gaussian_model._features_rest = gan_model._features_dc[:, 0:0]

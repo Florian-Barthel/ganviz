@@ -23,4 +23,4 @@ def view_conditioning(cam_params, fov, mapping_conditioning, device="cuda"):
         mapping_camera_params = torch.concat([cam.reshape(-1, 16), intrinsics.reshape(-1, 9)], 1)
     else:
         raise NotImplementedError
-    return gan_camera_params, mapping_camera_params
+    return mapping_camera_params

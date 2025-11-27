@@ -4,12 +4,14 @@ import torch
 import sys
 sys.path.append("gan_inversion")
 sys.path.append("gan_preprocessing")
+sys.path.append("gaussian_splatting")
 
 torch.set_printoptions(precision=2, sci_mode=False)
 np.set_printoptions(precision=2)
 
 from renderer.renderer_wrapper import RendererWrapper
-from renderer.gan_renderer import GANRenderer
+# from renderer.gan_renderer import GANRenderer
+from renderer.gan_renderer_gghead import GANRenderer
 from splatviz_utils.gui_utils import imgui_window
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils import gl_utils
