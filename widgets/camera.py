@@ -38,6 +38,9 @@ class CamWidget(Widget):
         self.momentum_dropoff_slider = Slider(viz, "momentum_dropoff", 0.8, 0.0, 1.0)
         self.rotate_speed_slider = Slider(viz, "rotate_speed", 0.005, 0.002, 0.1, log=True)
 
+        # stereo
+        self.baseline_slider = Slider(viz, "baseline", value=0.06, min_val=-0.1, max_val=0.1)
+
         # cam matrix
         self.up_vector_tensor_input = InputTensor(viz, "up_vector", [0.0, up_direction, 0.0], device=device)
         self.fov_slider = Slider(viz, "fov", fov, 1, 180, format="%.2f °", add_to_args=True, with_input_field=True)
@@ -63,6 +66,9 @@ class CamWidget(Widget):
             self.momentum_slider()
             self.momentum_dropoff_slider()
             self.rotate_speed_slider()
+
+            imgui.text("\nStereo")
+            self.baseline_slider()
 
             imgui.text("\nCamera Matrix")
             imgui.push_item_width(200)
@@ -92,9 +98,13 @@ class CamWidget(Widget):
                     self.lookat_point_tensor.value = viz.result.mean_xyz
             imgui.pop_item_width()
 
-
+        right = torch.linalg.cross(self.forward, self.up_vector_tensor_input.value)
+        right = right / torch.linalg.norm(right)
+        right_shift = right * self.baseline_slider.value
+        self.cam_params_stereo = create_cam2world_matrix(self.forward, self.cam_pos + right_shift, self.up_vector_tensor_input.value)[0]
         self.cam_params = create_cam2world_matrix(self.forward, self.cam_pos, self.up_vector_tensor_input.value)[0]
         viz.args.cam_params = self.cam_params
+        viz.args.cam_params_stereo = self.cam_params_stereo
 
         if show:
             imgui.text("\nExtrinsics Matrix")

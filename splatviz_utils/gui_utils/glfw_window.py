@@ -16,7 +16,7 @@ from PIL import Image
 
 class GlfwWindow:
     def __init__(
-        self, *, title="GlfwWindow", window_width=1920, window_height=1080, deferred_show=True, close_on_esc=True
+        self, *, title="GlfwWindow", window_width=1920, window_height=1080, deferred_show=True, close_on_esc=False
     ):
         self._glfw_window = None
         self._drawing_frame = False

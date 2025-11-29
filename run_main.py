@@ -1,9 +1,10 @@
 import click
 from splatviz import Splatviz
+from stereo_window import StereoWindow
 
 
 @click.command()
-@click.option("--gan_path", help="path to GAN project", default="./cgs_gan", type=click.Path())
+@click.option("--gan_path", help="path to GAN project", required=True, type=click.Path())
 def main(gan_path):
     splatviz = Splatviz(gan_path=gan_path)
     while not splatviz.should_close():

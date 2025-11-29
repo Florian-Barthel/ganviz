@@ -8,7 +8,7 @@ from tqdm import tqdm
 from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.gaussian_renderer import render_simple
 from gaussian_splatting.scene.cameras import CustomCam
-from gan_inversion.inversion import Inversion
+# from gan_inversion.inversion import Inversion
 from gan_preprocessing.preprocess import Preprocessor
 from renderer.base_renderer import Renderer
 from splatviz_utils.dict_utils import EasyDict
@@ -29,7 +29,7 @@ class GANRenderer(Renderer):
         self.last_seed = 0
 
         self.inversion_generator = None
-        self.inverter = Inversion()
+        #self.inverter = Inversion()
         self.preprocess = Preprocessor()
         self.w_inversion = torch.randn([1, 512], device=self._device)
         self.inversion_step = 0
@@ -46,6 +46,7 @@ class GANRenderer(Renderer):
         cam_params,
         current_ply_names,
         background_color,
+        cam_params_stereo=None,
         latent_space="W",
         img_normalize=False,
         latent_x=0.0,
@@ -123,8 +124,13 @@ class GANRenderer(Renderer):
 
         # render 3DGS scene
         fov_rad = fov / 360 * 2 * np.pi
-        render_cam = CustomCam(resolution, resolution, fovy=fov_rad, fovx=fov_rad, extr=cam_params)
+        render_cam = CustomCam(resolution, resolution, fovy=fov_rad, fovx=fov_rad * 2, extr=cam_params)
         img = render_simple(viewpoint_camera=render_cam, pc=gs, bg_color=background_color.to(self.device))["render"]
+
+        if cam_params_stereo is not None:
+            render_cam = CustomCam(resolution, resolution, fovy=fov_rad, fovx=fov_rad * 2, extr=cam_params_stereo)
+            img_stereo = render_simple(viewpoint_camera=render_cam, pc=gs, bg_color=background_color.to(self.device))["render"]
+            img = torch.cat([img, img_stereo], dim=2)
 
         # return / eval / save scene
         self._return_image(img, res, normalize=img_normalize)
@@ -181,5 +187,5 @@ class GANRenderer(Renderer):
         self.generator = copy.deepcopy(save_file["G_ema"]).eval().requires_grad_(True).to(self.device)
         self._current_pkl_file_path = pkl_file_path
         self.create_latent_map()
-        self.inverter.set_generator(self.generator)
+        #self.inverter.set_generator(self.generator)
         return True

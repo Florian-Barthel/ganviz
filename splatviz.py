@@ -4,6 +4,7 @@ import torch
 import sys
 sys.path.append("gan_inversion")
 sys.path.append("gan_preprocessing")
+sys.path.append("gaussian_splatting")
 
 torch.set_printoptions(precision=2, sci_mode=False)
 np.set_printoptions(precision=2)
@@ -25,8 +26,9 @@ from widgets import (
     save,
     latent,
     render,
-    inversion
+    inversion,
 )
+
 
 
 class Splatviz(imgui_window.ImguiWindow):
@@ -83,6 +85,9 @@ class Splatviz(imgui_window.ImguiWindow):
         self.skip_frame()
         self.preprocessed_images = []
 
+        self.image = None
+
+
     def close(self):
         for widget in self.widgets:
             widget.close()
@@ -112,10 +117,10 @@ class Splatviz(imgui_window.ImguiWindow):
         self._set_sizes()
 
         # Control pane
-        imgui.set_next_window_pos(imgui.ImVec2(0, 0))
-        imgui.set_next_window_size(imgui.ImVec2(self.pane_w, self.content_height))
-        control_pane_flags = WINDOW_NO_TITLE_BAR | WINDOW_NO_RESIZE | WINDOW_NO_MOVE
-        imgui.begin("##control_pane", p_open=True, flags=control_pane_flags)
+        #imgui.set_next_window_pos(imgui.ImVec2(0, 0))
+        #imgui.set_next_window_size(imgui.ImVec2(self.pane_w, self.content_height))
+        #control_pane_flags = WINDOW_NO_TITLE_BAR | WINDOW_NO_RESIZE | WINDOW_NO_MOVE
+        imgui.begin("##control_pane")#, flags=control_pane_flags)
 
         # Widgets
         for widget in self.widgets:
@@ -136,17 +141,21 @@ class Splatviz(imgui_window.ImguiWindow):
                 self.result = result
 
         # Display
-        max_w = self.content_width - self.pane_w
+        max_w = self.content_width
         max_h = self.content_height
-        pos = np.array([self.pane_w + max_w / 2, max_h / 2])
+        pos = np.array([max_w / 2, max_h / 2])
+        #pos = np.array([0, 0])
         if "image" in self.result:
+            self.image = self.result.image
+            # self.stereo_window.image = self.image
+            # self.stereo_window.draw_frame()
             if self._tex_img is not self.result.image:
                 self._tex_img = self.result.image
                 if self._tex_obj is None or not self._tex_obj.is_compatible(image=self._tex_img):
                     self._tex_obj = gl_utils.Texture(image=self._tex_img, bilinear=False, mipmap=False)
                 else:
                     self._tex_obj.update(self._tex_img)
-            zoom = min(max_w / self._tex_obj.width, max_h / self._tex_obj.height)
+            zoom = max(max_w / self._tex_obj.width, max_h / self._tex_obj.height)
             self._tex_obj.draw(pos=pos, zoom=zoom, align=0.5, rint=True)
         if "error" in self.result:
             self.print_error(self.result.error)
