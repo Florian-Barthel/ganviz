@@ -21,7 +21,7 @@ from splatviz_utils.gui_utils import style
 
 
 class ImguiWindow(glfw_window.GlfwWindow):
-    def __init__(self, *, title="ImguiWindow", font=None, code_font=None, font_sizes=range(16, 64), **glfw_kwargs):
+    def __init__(self, *, title="ImguiWindow", font=None, code_font=None, font_sizes=range(40, 128), **glfw_kwargs):
         if font is None:
             font = text_utils.get_default_font()
             code_font = text_utils.get_default_font()
@@ -86,14 +86,14 @@ class ImguiWindow(glfw_window.GlfwWindow):
         super().begin_frame()
 
         # Process imgui events.
-        self._imgui_renderer.mouse_wheel_multiplier = self._cur_font_size / 10
+        #self._imgui_renderer.mouse_wheel_multiplier = self._cur_font_size / 10
         if self.content_width > 0 and self.content_height > 0:
             self._imgui_renderer.process_inputs()
 
         # Begin imgui frame.
         imgui.new_frame()
         imgui.push_font(self._imgui_fonts[self._cur_font_size], 0.0)
-        style.set_default_style(spacing=self.spacing, indent=self.font_size, scrollbar=self.font_size + 4)
+        style.set_default_style(spacing=self.spacing, indent=self.font_size, scrollbar=self.font_size)
 
     def end_frame(self):
         imgui.pop_font()
@@ -110,7 +110,7 @@ class ImguiWindow(glfw_window.GlfwWindow):
 class _GlfwRenderer(GlfwRenderer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mouse_wheel_multiplier = 1
+        self.mouse_wheel_multiplier = 0.5
 
     def scroll_callback(self, window, x_offset, y_offset):
         self.io.mouse_wheel += y_offset * self.mouse_wheel_multiplier

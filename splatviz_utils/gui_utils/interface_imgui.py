@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from imgui_bundle._imgui_bundle import implot, imgui
 
+from splatviz_utils.dict_utils import EasyDict
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils.easy_imgui import label, slider
 
@@ -111,7 +112,7 @@ class InputTensor:
         elif self.num_entries == 4:
             self.imgui_func = imgui.input_float4
         else:
-            raise ValueError("only supports a maximum of 4 entries")
+            self.imgui_func = None
 
         self.add_to_args = add_to_args
         if self.add_to_args:
@@ -120,7 +121,19 @@ class InputTensor:
     def __call__(self):
         label(self.name, self.viz.label_w)
         list_value = self.value.tolist()
-        changed, list_value = self.imgui_func("##" + self.name + "_input_tensor", list_value, format=self.format)
+        if not self.imgui_func is None:
+            changed, list_value = self.imgui_func("##" + self.name + "_input_tensor", list_value, format=self.format)
+        else:
+            changed = False
+            for index in range(len(list_value)):
+                imgui.push_item_width(40)
+                entry_changed, list_value[index] = imgui.input_float("##" + self.name + "_input_tensor_" + str(index), list_value[index], format=self.format)
+                imgui.same_line()
+                imgui.pop_item_width()
+                if entry_changed:
+                    changed = True
+
+            imgui.new_line()
         if changed:
             self.value = torch.tensor(list_value, device=self.device)
         if self.add_to_args:
@@ -192,43 +205,131 @@ class Combo:
 
 
 class LatentSpace:
-    def __init__(self, viz, name, name_x, name_y, size=10, color=(1, 1, 1), add_to_args=False):
+    def __init__(self, viz, name, latent_name, size=20, color=(1, 1, 1), limits=(-1, 1), add_to_args=False):
         self.viz = viz
         self.name = name
-        self.name_x = name_x
-        self.name_y = name_y
-        self.x = 0.0
-        self.y = 0.0
+        self.latent_name = latent_name
+        self.pos = EasyDict(x=0.0, y=0.0, name=self.latent_name)
         self.size = size
         self.color = color
         self.add_to_args = add_to_args
+        self.limits = limits
         if self.add_to_args:
-            setattr(self.viz.args, self.name + self.name_x, self.x)
-            setattr(self.viz.args, self.name + self.name_y, self.y)
+            setattr(self.viz.args, self.name, self.pos)
 
     def __call__(self):
-        _clicked, dragging, dx, dy = imgui_utils.drag_button(f"Drag {self.name}", width=self.viz.button_w)
-        if dragging:
-            self.x += dx * 0.0005
-            self.y -= dy * 0.0005
+        # _clicked, dragging, dx, dy = imgui_utils.drag_button(f"Drag {self.name}", width=self.viz.button_w)
+        # if dragging:
+        #     self.pos.x += dx * 0.0005
+        #     self.pos.y -= dy * 0.0005
 
-        label("Latent")
-        with imgui_utils.item_width(self.viz.font_size * 8):
-            changed, (x_man, y_man) = imgui.input_float2("##" + self.name + "_drag_xy", v=[self.x, self.y])
-            if changed:
-                self.x = x_man
-                self.y = y_man
+        # with imgui_utils.item_width(self.viz.font_size * 8):
+        #     changed, (x_man, y_man) = imgui.input_float2("##" + self.name + "_drag_xy", v=[self.pos.x, self.pos.y])
+        #     if changed:
+        #         self.pos.x = x_man
+        #         self.pos.y = y_man
 
-        if implot.begin_plot(self.name, [self.viz.pane_w // 2, self.viz.pane_w // 2]):
-            implot.setup_axes_limits(-1, 1, -1, 1, True)
-            _changed, self.x, self.y, _, _, _ = implot.drag_point(0, self.x, self.y, imgui.ImVec4([*self.color, 1]), self.size, out_clicked=True)
+        # label(self.latent_name)
+        if implot.begin_plot(self.name, [self.viz.pane_w // 3, self.viz.pane_w // 3]):
+            implot.setup_axes_limits(self.limits[0], self.limits[1], self.limits[0], self.limits[1], True)
+            _changed, self.pos.x, self.pos.y, _, _, _ = implot.drag_point(0, self.pos.x, self.pos.y, imgui.ImVec4([*self.color, 1]), self.size, out_clicked=True)
             implot.end_plot()
-        self.x = np.clip(self.x, -1, 1)
-        self.y = np.clip(self.y, -1, 1)
+        self.pos.x = np.clip(self.pos.x, self.limits[0], self.limits[1])
+        self.pos.y = np.clip(self.pos.y, self.limits[0], self.limits[1])
 
         if self.add_to_args:
-            setattr(self.viz.args, self.name + self.name_x, self.x)
-            setattr(self.viz.args, self.name + self.name_y, self.y)
+            setattr(self.viz.args, self.name, self.pos)
 
 
 
+class ColorHist:
+    def __init__(self, viz, name, num_colors=3, add_to_args=False, device="cuda"):
+        self.viz = viz
+        self.name = name
+        self.num_colors = num_colors
+        self.colors = np.ones([self.num_colors, 3])
+        self.colors[0] *= 0.5
+        self.colors[1] *= 0.0
+
+        self.device = device
+        self.add_to_args = add_to_args
+        if self.add_to_args:
+            setattr(self.viz.args, self.name, self._calc_hist())
+
+    def _calc_hist(self):
+        r_hist, _bin_borders = np.histogram(self.colors[:, 0], bins=10, range=(0, 1.0))
+        g_hist, _bin_borders = np.histogram(self.colors[:, 1], bins=10, range=(0, 1.0))
+        b_hist, _bin_borders = np.histogram(self.colors[:, 2], bins=10, range=(0, 1.0))
+
+        r_hist = r_hist.astype(float) / 3
+        g_hist = g_hist.astype(float) / 3
+        b_hist = b_hist.astype(float) / 3
+
+        # Save result
+        result = torch.tensor(np.concatenate([r_hist, g_hist, b_hist]), device=self.device)[None, ...]
+        #print(result)
+        return result
+
+    def __call__(self):
+        # label(self.name, width=self.viz.label_w)
+        imgui.push_item_width(200)
+        # imgui.new_line()
+        for i in range(self.num_colors):
+            imgui.same_line()
+            changed, self.colors[i] = imgui.color_picker3("##" + self.name + f"_color_{i}", self.colors[i].tolist())
+
+        imgui.pop_item_width()
+        if self.add_to_args:
+            setattr(self.viz.args, self.name, self._calc_hist())
+
+
+
+class ColorHistYCbCr:
+    def __init__(self, viz, name, num_colors=3, add_to_args=False, device="cuda"):
+        self.viz = viz
+        self.name = name
+        self.num_colors = num_colors
+        self.colors = np.ones([self.num_colors, 3])
+        self.colors[0] *= 0.5
+        self.colors[1] *= 0.0
+
+        self.device = device
+        self.add_to_args = add_to_args
+        if self.add_to_args:
+            setattr(self.viz.args, self.name, self._calc_hist())
+
+    def _calc_hist(self):
+
+        R = self.colors[:, 0] * 255
+        G = self.colors[:, 1] * 255
+        B = self.colors[:, 2] * 255
+        Y = 0.299 * R + 0.587 * G + 0.114 * B
+        Cb = -0.167 * R - 0.3313 * G - 0.5 * B + 128
+        Cr = 0.5 * R - 0.4187 * G - 0.0813 * B + 128
+
+
+        Y_hist, _bin_borders =  np.histogram(Y,  bins=10, range=(0, 255))
+        Cb_hist, _bin_borders = np.histogram(Cb, bins=10, range=(0, 255))
+        Cr_hist, _bin_borders = np.histogram(Cr, bins=10, range=(0, 255))
+
+        Y_hist = Y_hist.astype(float) / self.num_colors
+        Cb_hist = Cb_hist.astype(float) / self.num_colors
+        Cr_hist = Cr_hist.astype(float) / self.num_colors
+
+        # Save result
+        result = torch.tensor(np.concatenate([Y_hist, Cb_hist, Cr_hist]), device=self.device)[None, ...]
+        #print(result)
+        return result
+
+    def __call__(self):
+        # label(self.name, width=self.viz.label_w)
+        imgui.push_item_width(200)
+        # imgui.new_line()
+        for i in range(self.num_colors):
+            imgui.same_line()
+
+            changed, self.colors[i] = imgui.color_picker3("##" + self.name + f"_color_{i}", self.colors[i].tolist())
+
+        imgui.pop_item_width()
+        if self.add_to_args:
+            setattr(self.viz.args, self.name, self._calc_hist())

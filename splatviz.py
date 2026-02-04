@@ -42,14 +42,14 @@ class Splatviz(imgui_window.ImguiWindow):
 
         super().__init__(
             title="splatviz",
-            window_width=1920,
-            window_height=1080,
+            window_width=1920*2,
+            window_height=1080*2,
             font=self.regular_font_path,
             code_font=self.code_font_path,
         )
 
-        self.code_font = imgui.get_io().fonts.add_font_from_file_ttf(self.code_font_path, 14)
-        self.regular_font = imgui.get_io().fonts.add_font_from_file_ttf(self.code_font_path, 14)
+        self.code_font = imgui.get_io().fonts.add_font_from_file_ttf(self.code_font_path, 20)
+        self.regular_font = imgui.get_io().fonts.add_font_from_file_ttf(self.code_font_path, 20)
         # self._imgui_renderer.refresh_font_texture()
 
         # Internals.
