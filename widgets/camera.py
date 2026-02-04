@@ -15,7 +15,7 @@ from widgets.widget import Widget
 
 
 class CamWidget(Widget):
-    def __init__(self, viz, fov=12, radius=2.7, up_direction=1, device="cuda"):
+    def __init__(self, viz, fov=7.7, radius=5, up_direction=1, device="cuda"):
         super().__init__(viz, "Camera")
         self.device = device
 

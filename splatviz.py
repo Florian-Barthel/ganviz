@@ -25,7 +25,7 @@ from widgets import (
     save,
     latent,
     render,
-    inversion
+    # inversion
 )
 
 
@@ -67,7 +67,7 @@ class Splatviz(imgui_window.ImguiWindow):
             edit.EditWidget(self),
             eval.EvalWidget(self),
             latent.LatentWidget(self),
-            inversion.InversionWidget(self),
+            # inversion.InversionWidget(self),
         ]
         self.gan_path = gan_path
         sys.path.append(gan_path)
@@ -96,7 +96,7 @@ class Splatviz(imgui_window.ImguiWindow):
 
     def _adjust_font_size(self):
         old = self.font_size
-        self.set_font_size(min(self.content_width / 120, self.content_height / 60))
+        self.set_font_size(min(self.content_width / 60, self.content_height / 30))
         if self.font_size != old:
             self.skip_frame()
 

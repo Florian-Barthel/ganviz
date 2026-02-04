@@ -40,7 +40,7 @@ class RenderWidget(Widget):
         self.colormaps_names = [key for key, _ in colormaps]
         self.invert = False
 
-        self.resolution_input = InputInt(viz, "resolution", value=512, add_to_args=True)
+        self.resolution_input = InputInt(viz, "resolution", value=256, add_to_args=True)
         self.background_color_input = InputTensor(viz, "background_color", value=[1.0, 1.0, 1.0], add_to_args=True)
         self.img_normalize_checkbox = CheckboxInput(viz, "img_normalize", value=False, add_to_args=True)
         self.invert_checkbox = CheckboxInput(viz, "invert", value=False, add_to_args=True)
