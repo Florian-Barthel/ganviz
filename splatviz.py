@@ -50,7 +50,7 @@ class Splatviz(imgui_window.ImguiWindow):
 
         self.code_font = imgui.get_io().fonts.add_font_from_file_ttf(self.code_font_path, 14)
         self.regular_font = imgui.get_io().fonts.add_font_from_file_ttf(self.code_font_path, 14)
-        # self._imgui_renderer.refresh_font_texture()
+        self._imgui_renderer.refresh_font_texture()
 
         # Internals.
         self._last_error_print = None

@@ -31,6 +31,7 @@ class InputInt:
         viz,
         name,
         value=0,
+        step=1,
         add_to_args=False,
     ):
         self.viz = viz
@@ -38,12 +39,13 @@ class InputInt:
         self.value = value
         self.format = format
         self.add_to_args = add_to_args
+        self.step = step
         if self.add_to_args:
             setattr(self.viz.args, self.name, self.value)
 
     def __call__(self):
         label(self.name, self.viz.label_w)
-        _changed, self.value = imgui.input_int("##" + self.name + "_input_int", self.value)
+        _changed, self.value = imgui.input_int("##" + self.name + "_input_int", self.value, step=self.step)
         if self.add_to_args:
             setattr(self.viz.args, self.name, self.value)
 
@@ -192,14 +194,14 @@ class Combo:
 
 
 class LatentSpace:
-    def __init__(self, viz, name, name_x, name_y, size=10, color=(1, 1, 1), add_to_args=False):
+    def __init__(self, viz, name, name_x, name_y, knob_size=20, color=(1, 1, 1), add_to_args=False):
         self.viz = viz
         self.name = name
         self.name_x = name_x
         self.name_y = name_y
         self.x = 0.0
         self.y = 0.0
-        self.size = size
+        self.knob_size = knob_size
         self.color = color
         self.add_to_args = add_to_args
         if self.add_to_args:
@@ -219,9 +221,9 @@ class LatentSpace:
                 self.x = x_man
                 self.y = y_man
 
-        if implot.begin_plot(self.name, [self.viz.pane_w // 2, self.viz.pane_w // 2]):
+        if implot.begin_plot(self.name, [int(self.viz.pane_w * 0.9), int(self.viz.pane_w * 0.9)]):
             implot.setup_axes_limits(-1, 1, -1, 1, True)
-            _changed, self.x, self.y, _, _, _ = implot.drag_point(0, self.x, self.y, imgui.ImVec4([*self.color, 1]), self.size, out_clicked=True)
+            _changed, self.x, self.y, _, _, _ = implot.drag_point(0, self.x, self.y, imgui.ImVec4([*self.color, 1]), self.knob_size, out_clicked=True)
             implot.end_plot()
         self.x = np.clip(self.x, -1, 1)
         self.y = np.clip(self.y, -1, 1)

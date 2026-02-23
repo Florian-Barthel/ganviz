@@ -19,6 +19,7 @@ git clone https://github.com/Florian-Barthel/ganviz.git --recursive
 cd ganviz
 ```
 
+sudo apt install cmake
 
 ### 2. Install Environment
 

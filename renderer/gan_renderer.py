@@ -75,11 +75,11 @@ class GANRenderer(Renderer):
             self.inverter.set_targets(images=preprocessed["cropped_images"], cams=preprocessed["cams"])
 
         if run_inversion:
+            self.use_inversion_w = True
             self.w_inversion, loss = self.inverter.step_w(self.generator, inversion_hyperparams)
         if run_tuning:
+            self.use_inversion_w = True
             self.w_inversion, loss = self.inverter.step_pti(self.generator, tuning_hyperparams)
-
-        self.use_inversion_w = run_inversion or run_tuning
 
         cam_params = cam_params.to(self.device)
         mapping_conditioning_changed = mapping_conditioning != self.last_mapping_conditioning
@@ -162,7 +162,13 @@ class GANRenderer(Renderer):
                 self.save_ply(self.gaussian_model, f"./_ply_grid/model_c{i:02d}_r{j:02d}.ply")
 
     def extract_gaussians(self, gan_result):
-        gan_model = EasyDict(gan_result["gaussian_params"][0])
+
+        gan_model = gan_result["gaussian_params"]
+        if isinstance(gan_model, dict):
+            gan_model = EasyDict(gan_model)
+        elif isinstance(gan_model, list):
+            gan_model = EasyDict(gan_model[0])
+
         self.gaussian_model._xyz = gan_model._xyz
         self.gaussian_model._features_dc = gan_model._features_dc
         self.gaussian_model._features_rest = gan_model._features_dc[:, 0:0]
