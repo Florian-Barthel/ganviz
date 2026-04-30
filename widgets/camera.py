@@ -1,3 +1,5 @@
+import time
+
 from imgui_bundle import imgui
 import torch
 import numpy as np
@@ -10,6 +12,7 @@ from splatviz_utils.cam_utils import (
     get_origin,
     normalize_vecs,
 )
+from splatviz_utils.gui_utils.easy_imgui import checkbox, label
 from splatviz_utils.gui_utils.interface_imgui import Combo, Slider, InputTensor, InputFloat
 from widgets.widget import Widget
 
@@ -29,6 +32,7 @@ class CamWidget(Widget):
         # momentum
         self.momentum_x = 0.0
         self.momentum_y = 0.0
+        self.animate = False
 
         # cam control
         self.cam_mode_combo = Combo(viz, "camera_mode", ["Orbit", "WASD"])
@@ -138,6 +142,13 @@ class CamWidget(Widget):
         self.momentum_x *= self.momentum_dropoff_slider.value
         self.momentum_y *= self.momentum_dropoff_slider.value
         self.pitch_input.value = np.clip(self.pitch_input.value, -np.pi / 2, np.pi / 2)
+
+        label("Animation")
+        self.animate = checkbox(self.animate, "animate")
+        if self.animate:
+            self.speed = 5
+            self.pitch_input.value = np.sin(time.time() / self.speed) * 0.5 #- np.pi
+            self.yaw_input.value = np.cos(time.time() / self.speed) * 0.5 - np.pi
 
     def handle_wasd(self):
         if self.cam_mode_combo.value == "WASD":

@@ -17,7 +17,7 @@ class LatentWidget(Widget):
         self.latent_space_combo = Combo(viz, "latent_space", ["W", "Z"], add_to_args=True)
         self.seed_input_int = InputInt(viz, "seed", 0, add_to_args=True)
         self.animate = False
-        self.speed = 10
+        self.speed = 15
 
     @imgui_utils.scoped_by_object_id
     def __call__(self, show=True):
