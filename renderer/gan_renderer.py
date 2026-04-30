@@ -3,8 +3,10 @@ import pickle
 import numpy as np
 import torch
 import torch.nn
+from PIL import Image
 from tqdm import tqdm
 
+from conditioning import load_cond, bin_size
 from gaussian_splatting.scene.gaussian_model import GaussianModel
 from gaussian_splatting.gaussian_renderer import render_simple
 from gaussian_splatting.scene.cameras import CustomCam
@@ -14,6 +16,7 @@ from renderer.base_renderer import Renderer
 from splatviz_utils.dict_utils import EasyDict
 from gan_helper.latent_vector import LatentMapRandom, LatentMapPCA
 from gan_helper.view_conditioning import view_conditioning
+from comp_gan.training.disco_generator import CGSGenerator
 
 
 class ValueTracker:
@@ -59,9 +62,9 @@ class ValueTracker:
 class GANRenderer(Renderer):
     def __init__(self):
         super().__init__()
-        self.generator = None
+        self.already_saved = False
+        self.generator: CGSGenerator = None
         self.latent_dim = 512 * 2
-        self.last_latent = torch.zeros([1, self.latent_dim], device=self._device)
         self._current_pkl_file_path = ""
         self.gaussian_model = GaussianModel(sh_degree=0, disable_xyz_log_activation=True)
         self.device = torch.device("cuda")
@@ -77,15 +80,11 @@ class GANRenderer(Renderer):
         self.use_inversion_w = False
         self.ws = None
 
-        self.last_latent_face = None
-        self.last_latent_glasses = None
-        self.last_latent_hair = None
-        self.last_latent_rest = None
-        self.last_latent_context = None
-
         self.tracker = ValueTracker()
         self.z_map = torch.randn([1, 512, 10, 10], device="cuda", dtype=torch.float)
+        self.z_shape_map = torch.randn([1, 512, 10, 10], device="cuda", dtype=torch.float)
         self.z_context_map = torch.randn([1, 8, 10, 10], device="cuda", dtype=torch.float)
+        self.color_cond = load_cond(100)
 
 
     def set_latents(self, list_of_latents, pca_components=None, latent_space="W"):
@@ -99,7 +98,7 @@ class GANRenderer(Renderer):
                     latent = self.latent_maps[latent_pos.name].get_latent(latent_pos.x, latent_pos.y, pca_components)
                     latent_dict[latent_pos.name] = latent
                 else:
-                    latent = self.latent_maps[latent_pos.name].get_latent(latent_pos.x, latent_pos.y, latent_space=latent_space)
+                    latent = self.latent_maps[latent_pos.name].get_latent(latent_pos.x, latent_pos.y, latent_space=latent_space, components_multiplier=latent_pos.val)
                     latent_dict[latent_pos.name] = latent
         return latent_dict
 
@@ -138,17 +137,25 @@ class GANRenderer(Renderer):
         latent_rest={},
         latent_bg={},
         latent_context={},
+        shape_context={},
 
         hair_color=None,
+        hair_color_weight=None,
         skin_color=None,
+        skin_color_weight=None,
         cloth_color=None,
+        cloth_color_weight=None,
         bg_color=None,
+        bg_color_weight=None,
 
         only_show="0",
         has_glasses=False,
         disable_hair=False,
         fix_ws=False,
-
+        color_index=-1,
+        show_ema=False,
+        cam_angles_mat=None,
+        generate_angles=False,
         **other_args
     ):
         slider = EasyDict(slider)
@@ -163,15 +170,21 @@ class GANRenderer(Renderer):
             latent_bg,
             latent_rest,
             latent_context,
+            shape_context,
             hair_color,
             skin_color,
             cloth_color,
+            hair_color_weight,
+            skin_color_weight,
+            cloth_color_weight,
             bg_color,
             only_show,
             seed,
             mapping_conditioning,
             truncation_psi,
-            ply_file_paths[0]
+            ply_file_paths[0],
+            color_index,
+            generate_angles
         ])
 
 
@@ -204,7 +217,11 @@ class GANRenderer(Renderer):
                 self.create_latent_maps(truncation_psi)
         self.last_truncation_psi = truncation_psi
 
-        latent_dict = self.set_latents([latent_face, latent_glasses, latent_hair, latent_rest, latent_context], pca_components, latent_space)
+        latent_dict = self.set_latents([latent_face, latent_glasses, latent_hair, latent_rest, latent_context, shape_context], pca_components, latent_space)
+        # self.generate_grid(cam_params, fov)
+        gan_camera_params, mapping_camera_params = view_conditioning(cam_params, fov, mapping_conditioning)
+        # self.save_with_diff_hair(cam_params, fov, background_color, mapping_conditioning, gan_camera_params)
+        #self.save_with_diff_glasses(cam_params, fov, background_color, mapping_conditioning)
 
         with torch.no_grad():
             if rerender or mapping_conditioning == "current" or run_inversion or run_tuning:
@@ -213,13 +230,19 @@ class GANRenderer(Renderer):
                 if self.use_inversion_w:
                     mapped_latent = self.w_inversion
 
-                conditioning = torch.zeros(1, 27+30+30+30, device="cuda")
+                conditioning = torch.zeros(1, 27+bin_size*3, device="cuda")
                 conditioning[:, :25] = gan_camera_params
                 conditioning[:, 25] = int(only_show)
                 conditioning[:, 26] = int(has_glasses)
-                conditioning[:, 27 : 27+30] =               hair_color
-                conditioning[:, 27+30 : 27+30+30] =         skin_color
-                conditioning[:, 27+30+30 : 27+30+30+30] =   cloth_color
+                if color_index < 0:
+                    conditioning[:, 27 : 27+bin_size] =               hair_color
+                    conditioning[:, 27+bin_size : 27+bin_size*2] =         skin_color
+                    conditioning[:, 27+bin_size*2 : 27+bin_size*3] =   cloth_color
+                else:
+                    conditioning[:, 27:] = self.color_cond[color_index]
+                    conditioning[:, 27: 27 + bin_size] =                      hair_color_weight * hair_color + (1 - hair_color_weight) * conditioning[:, 27: 27 + bin_size]
+                    conditioning[:, 27 + bin_size: 27 + bin_size*2] =            skin_color_weight * skin_color + (1 - skin_color_weight) * conditioning[:, 27 + bin_size: 27 + bin_size*2]
+                    conditioning[:, 27 + bin_size*2: 27 + bin_size*3] =  cloth_color_weight * cloth_color + (1 - cloth_color_weight) * conditioning[:, 27 + bin_size*2: 27 + bin_size*3]
 
                 components = ["ws_head", "ws_glasses", "ws_hair", "ws_rest"]
                 components_index = [1, 2, 3, 4]
@@ -239,8 +262,9 @@ class GANRenderer(Renderer):
                     ws_dict = {
                         "ws_combined": latent_dict[name][:, None, :].repeat(1, self.generator.combined_mapping.num_ws, 1),
                         "ws_context": latent_dict["ws_context"],
+                        "ws_shape": latent_dict["ws_shape"],
                     }
-                    gan_result = self.generator.synthesis(ws_dict, c=conditioning, render_output=False, single_image=False)
+                    gan_result = self.generator.synthesis(ws_dict, c=conditioning, render_output=False, single_image=True)
                     # ws_dict = {
                     #     "ws_combined": latent_dict[name][:, None, :].repeat(1, self.generator.combined_mapping.num_ws, 1),
                     #     "z_context": latent_dict["z_context"],
@@ -258,13 +282,21 @@ class GANRenderer(Renderer):
                     gaussian_params["_opacity"] = torch.concat([gaussian_params["_opacity"], opacity.float()], dim=0)
                     gaussian_params["_features_dc"] = torch.concat([gaussian_params["_features_dc"], cur_params["_features_dc"]], dim=0)
                     gaussian_params["_features_rest"] = torch.concat([gaussian_params["_features_rest"], cur_params["_features_rest"]], dim=0)
+                    if name == "ws_head" and show_ema:
 
-                self.last_latent = latent_dict
+                        gaussian_params["_xyz"] = self.generator.ema_geometry
+                        gaussian_params["_opacity"] = self.generator.ema_geometry_opa
+
                 self.extract_gaussians(gaussian_params)
+
 
         # edit 3DGS scene
         gs = copy.deepcopy(self.gaussian_model)
         exec(edit_text)
+
+        if generate_angles:
+            conditioning[:, 25] = 0
+            self.save_different_angles(cam_angles_mat, fov, resolution, gs, background_color.to(self.device))
 
         # render 3DGS scene
         fov_rad = fov / 360 * 2 * np.pi
@@ -278,17 +310,20 @@ class GANRenderer(Renderer):
         if len(eval_text) > 0:
             res.eval = eval(eval_text)
 
+        # self.save_with_and_without_glasses(cam_params, fov, mapping_conditioning)
         if save_ply_grid_path is not None:
             self.save_ply_grid(cam_params, fov, latent_space, mapped_latent, mapping_conditioning, truncation_psi)
 
     def create_latent_maps(self, truncation_psi=1.0):
         # mapping network, input latent dimension, use conditioning
+        shape_mapping = self.generator.mapping_network_shape
         latent_networks = {
             "ws_head":      (self.generator.combined_mapping, 512, True),
             "ws_glasses":   (self.generator.combined_mapping, 512, True),
             "ws_hair":      (self.generator.combined_mapping, 512, True),
             "ws_rest":      (self.generator.combined_mapping, 512, True),
             "ws_context":   (self.generator.context_mapping,  512, False),
+            "ws_shape":     (self.generator.mapping_network_shape, 512, False),
             #"z_context":    (None, None, 4, False),
         }
         self.latent_maps = {}
@@ -300,14 +335,14 @@ class GANRenderer(Renderer):
                 self.latent_maps[key].load_w_map(mapping_network)
             else:
                 if key == "z_context":
-                    self.latent_maps[key] = LatentMapRandom(size, use_cond=use_cond)
+                    self.latent_maps[key] = LatentMapRandom(size, use_cond=use_cond, cond=self.color_cond)
                     self.latent_maps[key].load_z_map(z_map=self.z_context_map)
                 else:
-                    self.latent_maps[key] = LatentMapRandom(size, use_cond=use_cond)
+                    self.latent_maps[key] = LatentMapRandom(size, use_cond=use_cond, cond=self.color_cond)
                     if mapping_network.w_avg_beta is None:
-                        self.latent_maps[key].load_w_map(mapping_network, z_map=self.z_map) # todo w
+                        self.latent_maps[key].load_w_map(mapping_network, shape_mapping, z_map=self.z_map, z_shape_map=self.z_shape_map)
                     else:
-                        self.latent_maps[key].load_w_map(mapping_network, z_map=self.z_map, truncation_psi=truncation_psi)
+                        self.latent_maps[key].load_w_map(mapping_network, shape_mapping, z_map=self.z_map, z_shape_map=self.z_shape_map, truncation_psi=truncation_psi)
 
     def save_ply_grid(self, cam_params, fov, latent_space, mapped_latent, mapping_conditioning, truncation_psi, steps=16):
         xs, ys = np.meshgrid(np.linspace(-0.5, 0.5, steps), np.linspace(-0.5, 0.5, steps))
@@ -322,9 +357,68 @@ class GANRenderer(Renderer):
                 elif latent_space == "W":
                     mapped_latent = latent[:, None, :].repeat(1, self.generator.mapping_network.num_ws, 1)
                 gan_result = self.generator.synthesis(mapped_latent, gan_camera_params)
-                self.last_latent = latent
                 self.extract_gaussians(gan_result)
                 self.save_ply(self.gaussian_model, f"./_ply_grid/model_c{i:02d}_r{j:02d}.ply")
+
+
+    def save_different_angles(self, cam_angles_mat, fov, resolution, gs, background_color):
+        with torch.no_grad():
+            fov_rad = fov / 360 * 2 * np.pi
+
+            id_ = np.random.randint(10000)
+            for i, cam in enumerate(cam_angles_mat):
+                render_cam = CustomCam(resolution, resolution, fovy=fov_rad, fovx=fov_rad, extr=torch.tensor(cam).cuda().reshape([4,4]))
+                img = render_simple(viewpoint_camera=render_cam, pc=gs, bg_color=background_color.to(self.device))["render"]
+                img = (img * 255).clamp(0, 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
+                Image.fromarray(img).save(f"./_angles/{id_}_{i}.png")
+
+    def save_with_diff_glasses(self, cam_params, fov, background_color, mapping_conditioning):
+        if self.already_saved:
+            return
+        colors = load_cond(1000)
+        with torch.no_grad():
+            for i in range(1000):
+                latent = torch.randn([1, 512 * 3], device="cuda")
+                for has_glasses in [0, 1]:
+                    gan_camera_params, mapping_camera_params = view_conditioning(cam_params, fov, mapping_conditioning)
+                    conditioning = torch.zeros(1, 27 + bin_size*3, device="cuda")
+                    conditioning[:, :25] = gan_camera_params
+                    conditioning[:, 25] = 0
+                    conditioning[:, 26] = int(has_glasses)
+                    conditioning[:, 27:] = colors[i]
+                    mapped_latent = self.generator.mapping(latent, conditioning)
+                    gan_result = self.generator.synthesis(mapped_latent, conditioning, render_output=True, random_bg=False)
+                    np_image = (gan_result["image"].cpu().numpy()[0].transpose(1, 2, 0) + 1) / 2 * 255
+                    np_image = np.clip(np_image, 0, 255).astype(np.uint8)
+                    Image.fromarray(np_image).save(f"./_glasses/{i}_{has_glasses}.png")
+        self.already_saved = True
+
+
+    def save_with_diff_hair(self, cam_params, fov, background_color, mapping_conditioning, gan_camera_params):
+        if self.already_saved:
+            return
+        colors = load_cond(1000)
+        with torch.no_grad():
+            for i in range(1000):
+                conditioning = torch.zeros(1, 27 + bin_size*3, device="cuda")
+                conditioning[:, :25] = gan_camera_params
+                conditioning[:, 25] = 0
+                conditioning[:, 26] = 0
+                conditioning[:, 27:] = colors[i]
+                latent = torch.randn([1, 512 * 3], device="cuda")
+                mapped_latent = self.generator.mapping(latent, conditioning)
+                latent = torch.randn([1, 512 * 3], device="cuda")
+                mapped_latent_diff = self.generator.mapping(latent, conditioning)
+
+                latent_dict = [mapped_latent, mapped_latent_diff]
+                for hair in [0, 1]:
+                    gan_camera_params, mapping_camera_params = view_conditioning(cam_params, fov, mapping_conditioning)
+
+                    gan_result = self.render_component_wise(resolution=512, fov=fov, conditioning=conditioning, cam_params=cam_params, has_glasses=False, background_color=background_color, latent_dict=latent_dict[0], latent_dict_hair=latent_dict[hair])
+                    np_image = gan_result.cpu().numpy().transpose(1, 2, 0) * 255
+                    np_image = np.clip(np_image, 0, 255).astype(np.uint8)
+                    Image.fromarray(np_image).save(f"./_hair/{i}_{hair}.png")
+        self.already_saved = True
 
     def extract_gaussians(self, gan_result):
         gan_model = EasyDict(gan_result)#["gaussian_params"][0])
@@ -344,11 +438,170 @@ class GANRenderer(Renderer):
         with open(pkl_file_path, "rb") as input_file:
             save_file = pickle.load(input_file)
         self.generator = copy.deepcopy(save_file["G_ema"]).eval().requires_grad_(False).to(self.device)
-        self.generator.use_bg_gen = False
-        self.generator.use_shape_context = False
-        self.generator.use_light_context = False
 
         self._current_pkl_file_path = pkl_file_path
         self.create_latent_maps()
         # self.inverter.set_generator(self.generator)
         return True
+
+    def generate_grid(
+            self,
+            cam_params,
+            fov,
+            resolution=1024,
+            latent_space="W",
+            mapping_conditioning="frontal",
+    ):
+        """
+        Generates a 4x4 grid where:
+          - rows vary head latent (ws_head)
+          - columns vary hair latent (ws_hair)
+        """
+
+        device = self.device
+        grid_size = 4
+
+
+        # Fixed coordinates for sampling
+        coords = torch.linspace(-0.5, 0.5, grid_size)
+        head_latents = [self.latent_maps["ws_head"].get_latent(x.item(), 0.0, latent_space) for x in coords]
+        hair_latents = [self.latent_maps["ws_hair"].get_latent(0.0, y.item(), latent_space) for y in coords]
+
+        # Fixed latents (shared across grid)
+        ws_glasses = self.latent_maps["ws_glasses"].get_latent(0.0, 0.0, latent_space)
+        ws_rest = self.latent_maps["ws_rest"].get_latent(0.0, 0.0, latent_space)
+        ws_context = self.latent_maps["ws_context"].get_latent(0.0, 0.0, latent_space)
+        ws_shape = self.latent_maps["ws_shape"].get_latent(0.0, 0.0, latent_space)
+
+        images = []
+
+        gan_camera_params, _ = view_conditioning(
+            cam_params.to(device), fov, mapping_conditioning
+        )
+
+        fov_rad = fov / 360 * 2 * np.pi
+        render_cam = CustomCam(
+            resolution,
+            resolution,
+            fovy=fov_rad,
+            fovx=fov_rad,
+            extr=cam_params.to(device),
+        )
+        dataset_conditioning = load_cond(100)[5:6]
+        conditioning = torch.zeros(1, 27+bin_size*3, device=device)
+        conditioning[:, 27:] = dataset_conditioning
+        with torch.no_grad():
+            for i in range(grid_size):
+                row_imgs = []
+                for j in range(grid_size):
+                    latent_dict = {
+                        "ws_head": head_latents[i],
+                        "ws_hair": hair_latents[j],
+                        "ws_glasses": ws_glasses,
+                        "ws_rest": ws_rest,
+                        "ws_context": ws_context,
+                        "ws_shape": ws_shape,
+                    }
+
+                    gaussian_params = {
+                        "_xyz": torch.empty((0, 3), device=device),
+                        "_scaling": torch.empty((0, 3), device=device),
+                        "_rotation": torch.empty((0, 4), device=device),
+                        "_features_dc": torch.empty((0, 1, 3), device=device),
+                        "_features_rest": torch.empty((0, 0, 3), device=device),
+                        "_opacity": torch.empty((0, 1), device=device),
+                    }
+
+                    components = ["ws_head", "ws_glasses", "ws_hair", "ws_rest"]
+                    component_ids = [1, 2, 3, 4]
+
+                    for name, cid in zip(components, component_ids):
+                        conditioning[:, 25] = cid
+                        ws_dict = {
+                            "ws_combined": latent_dict[name][:, None, :].repeat(1, self.generator.combined_mapping.num_ws, 1),
+                            "ws_context": ws_context,
+                            "ws_shape": ws_shape,
+                        }
+
+                        out = self.generator.synthesis(
+                            ws_dict,
+                            c=conditioning,
+                            render_output=False,
+                            single_image=True,
+                        )["gaussian_params"][0]
+
+                        for k in gaussian_params:
+                            gaussian_params[k] = torch.cat(
+                                [gaussian_params[k], out[k]], dim=0
+                            )
+
+                    self.extract_gaussians(gaussian_params)
+                    img = render_simple(
+                        viewpoint_camera=render_cam,
+                        pc=self.gaussian_model,
+                        bg_color=torch.ones(3, device=device),
+                    )["render"]
+
+                    row_imgs.append(img)
+                images.append(torch.stack(row_imgs, dim=0))
+
+        # (4, 4, 3, H, W)
+        self.save_grid_image_manual(torch.stack(images, dim=0), path="grid.png")
+
+    @staticmethod
+    def save_grid_image_manual(grid, path):
+        _, _, C, H, W = grid.shape
+        grid = grid.permute(2, 0, 3, 1, 4)
+        grid = grid.reshape(C, 4 * H, 4 * W)
+        grid = grid.clamp(0, 1)
+        img = (grid * 255).byte()
+        img = img.permute(1, 2, 0).cpu().numpy()  # (H, W, 3)
+        Image.fromarray(img).save(path)
+
+
+    def render_component_wise(self, resolution, fov, conditioning, cam_params, has_glasses, background_color, latent_dict, latent_dict_hair):
+        with torch.no_grad():
+            components = ["ws_head", "ws_glasses", "ws_hair", "ws_rest"]
+            components_index = [1, 2, 3, 4]
+
+            gaussian_params = {
+                "_xyz": torch.empty((0, 3), device="cuda", dtype=torch.float32),
+                "_scaling": torch.empty((0, 3), device="cuda", dtype=torch.float32),
+                "_rotation": torch.empty((0, 4), device="cuda", dtype=torch.float32),
+                "_features_dc": torch.empty((0, 1, 3), device="cuda", dtype=torch.float32),
+                "_features_rest": torch.empty((0, 0, 3), device="cuda", dtype=torch.float32),
+                "_opacity": torch.empty((0, 1), device="cuda", dtype=torch.float32),
+            }
+            for i, name in enumerate(components):
+                conditioning[:, 25] = components_index[i]
+                ws_dict = {
+                    "ws_combined": latent_dict["ws_combined"],
+                    "ws_context": latent_dict["ws_context"],
+                    "ws_shape": latent_dict["ws_shape"],
+                }
+                if name == "ws_hair":
+                    ws_dict["ws_combined"] = latent_dict_hair["ws_combined"]
+                gan_result = self.generator.synthesis(ws_dict, c=conditioning, render_output=False, single_image=True)
+                cur_params = gan_result["gaussian_params"][0]
+
+                gaussian_params["_xyz"] = torch.concat([gaussian_params["_xyz"], cur_params["_xyz"]], dim=0)
+                gaussian_params["_scaling"] = torch.concat([gaussian_params["_scaling"], cur_params["_scaling"]], dim=0)
+                gaussian_params["_rotation"] = torch.concat([gaussian_params["_rotation"], cur_params["_rotation"]], dim=0)
+                if name == "ws_glasses":
+                    opacity = cur_params["_opacity"] - 20 * (1 - int(has_glasses))
+                else:
+                    opacity = cur_params["_opacity"]
+                gaussian_params["_opacity"] = torch.concat([gaussian_params["_opacity"], opacity.float()], dim=0)
+                gaussian_params["_features_dc"] = torch.concat([gaussian_params["_features_dc"], cur_params["_features_dc"]], dim=0)
+                gaussian_params["_features_rest"] = torch.concat([gaussian_params["_features_rest"], cur_params["_features_rest"]], dim=0)
+
+            self.extract_gaussians(gaussian_params)
+
+        # edit 3DGS scene
+        gs = copy.deepcopy(self.gaussian_model)
+
+        # render 3DGS scene
+        fov_rad = fov / 360 * 2 * np.pi
+        render_cam = CustomCam(resolution, resolution, fovy=fov_rad, fovx=fov_rad, extr=cam_params)
+        img = render_simple(viewpoint_camera=render_cam, pc=gs, bg_color=background_color.to(self.device))["render"]
+        return img

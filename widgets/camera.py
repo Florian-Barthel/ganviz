@@ -10,7 +10,7 @@ from splatviz_utils.cam_utils import (
     get_origin,
     normalize_vecs,
 )
-from splatviz_utils.gui_utils.interface_imgui import Combo, Slider, InputTensor, InputFloat
+from splatviz_utils.gui_utils.interface_imgui import Combo, Slider, InputTensor, InputFloat, InputInt
 from widgets.widget import Widget
 
 
@@ -46,6 +46,10 @@ class CamWidget(Widget):
         self.radius_slider = Slider(viz, "radius", radius, 20, with_input_field=True)
         self.lookat_point_tensor = InputTensor(viz, "lookat_point", [0.0, 0.0, 0.0], device=device)
 
+        self.num_angles_input = InputInt(viz, "num_angles", 7)
+        self.deg_step_input = InputFloat(viz, "deg_step", 15.0)
+        self.cam_angles = []
+
     @imgui_utils.scoped_by_object_id
     def __call__(self, show: bool):
         viz = self.viz
@@ -54,7 +58,26 @@ class CamWidget(Widget):
         self.handle_mouse_wheel()
         self.handle_wasd()
 
+        cam_angles_mat = []
+        for step in range(self.num_angles_input.value):
+            cam_pos_ = get_origin(
+                (step * self.deg_step_input.value - 90 - self.num_angles_input.value // 2 * self.deg_step_input.value) / 360 * 2 * np.pi,
+                np.pi / 2,
+                self.radius_slider.value,
+                self.lookat_point_tensor.value,
+                up_vector=self.up_vector_tensor_input.value,
+            )
+            fwd = normalize_vecs(self.lookat_point_tensor.value - cam_pos_)
+            cam_angles_mat.append(list(create_cam2world_matrix(fwd, cam_pos_, self.up_vector_tensor_input.value)[0].cpu().numpy().flatten()))
+        viz.args.cam_angles_mat = cam_angles_mat
+
         if show:
+            self.num_angles_input()
+            self.deg_step_input()
+            viz.args.generate_angles = False
+            if imgui_utils.button("Generate angles", width=viz.button_w):
+                viz.args.generate_angles = True
+
             imgui.text("Camera Controls")
             self.cam_mode_combo()
             if self.cam_mode_combo.value == "WASD":

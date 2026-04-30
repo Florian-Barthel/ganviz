@@ -44,7 +44,7 @@ class GlfwWindow:
 
         # Adjust window.
         self.set_vsync(False)
-        self.set_window_size(window_width, window_height)
+        #self.set_window_size(window_width, window_height)
         if not self._deferred_show:
             glfw.show_window(self._glfw_window)
 

@@ -323,5 +323,29 @@
         }
       }
     ]
+  },
+  "viz_layer": {
+    "edit_text": "start = 0 #+ 250 * 1 #+ 250 * 4 #+ 250 * 16 #+ 250 * 16*4*4\nend =   0 + 250 * 1 + 250 * 4 + 250 * 16 + 250 * 16*4*4 +250 * 16*4*4*4 \n\n\ngs._xyz = gs._xyz[start:end]\ngs._rotation = gs._rotation[start:end]\ngs._scaling = gs._scaling[start:end]\ngs._opacity = gs._opacity[start:end]\ngs._features_dc = gs._features_dc[start:end]\ngs._features_rest = gs._features_rest[start:end]\n",
+    "slider": [
+      {
+        "key": "x",
+        "value": 1.0,
+        "min_value": 0.0,
+        "max_value": 10.0,
+        "_id": "a8f2a853-17ba-4f7f-9dd8-843d2f0756a1"
+      }
+    ]
+  },
+  "viz_layer_v2": {
+    "edit_text": "num_points = 250\nstart = 0 #+ num_points #+ num_points * 4 #+ num_points * 16 #+ num_points * 64 #+ num_points * 128\nend =   0 + num_points #+ num_points * 4 #+ num_points * 16 #+ num_points * 64 #+ num_points * 128 #+ num_points * 256\n\n\ngs._xyz = gs._xyz[start:end]\ngs._rotation = gs._rotation[start:end]\ngs._scaling = gs._scaling[start:end]\ngs._opacity = gs._opacity[start:end]\ngs._features_dc = gs._features_dc[start:end]\ngs._features_rest = gs._features_rest[start:end]\n",
+    "slider": [
+      {
+        "key": "x",
+        "value": 1.0,
+        "min_value": 0.0,
+        "max_value": 10.0,
+        "_id": "a8f2a853-17ba-4f7f-9dd8-843d2f0756a1"
+      }
+    ]
   }
 }

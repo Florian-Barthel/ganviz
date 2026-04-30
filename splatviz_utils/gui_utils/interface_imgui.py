@@ -1,7 +1,9 @@
 import numpy as np
 import torch
+from imgui_bundle import ImVec2
 from imgui_bundle._imgui_bundle import implot, imgui
 
+from conditioning import bin_size
 from splatviz_utils.dict_utils import EasyDict
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils.easy_imgui import label, slider
@@ -205,37 +207,55 @@ class Combo:
 
 
 class LatentSpace:
-    def __init__(self, viz, name, latent_name, size=20, color=(1, 1, 1), limits=(-1, 1), add_to_args=False):
+    def __init__(self, viz, name, latent_name, size=20, color=(1, 1, 1), limits=(-1, 1), add_to_args=False, num_components=4):
         self.viz = viz
         self.name = name
         self.latent_name = latent_name
-        self.pos = EasyDict(x=0.0, y=0.0, name=self.latent_name)
+        self.pos = EasyDict(x=0.0, y=0.0, val=[0]*num_components, name=self.latent_name)
         self.size = size
         self.color = color
         self.add_to_args = add_to_args
         self.limits = limits
+
+        self.checkpoints = []
+
+        self.num_components = num_components
+        self.min_val = -3
+        self.max_val = 3
+
         if self.add_to_args:
             setattr(self.viz.args, self.name, self.pos)
 
     def __call__(self):
-        # _clicked, dragging, dx, dy = imgui_utils.drag_button(f"Drag {self.name}", width=self.viz.button_w)
-        # if dragging:
-        #     self.pos.x += dx * 0.0005
-        #     self.pos.y -= dy * 0.0005
+        if imgui.button(f"Save Checkpoint {self.name}", size=ImVec2(self.viz.label_w_large, 0)):
+            self.checkpoints.append((self.pos.x, self.pos.y))
 
-        # with imgui_utils.item_width(self.viz.font_size * 8):
-        #     changed, (x_man, y_man) = imgui.input_float2("##" + self.name + "_drag_xy", v=[self.pos.x, self.pos.y])
-        #     if changed:
-        #         self.pos.x = x_man
-        #         self.pos.y = y_man
+        for i, checkpoint in enumerate(self.checkpoints):
+            if imgui.button(f"Load Checkpoint {i} {self.name}", size=ImVec2(self.viz.label_w_large, 0)):
+                self.pos.x, self.pos.y = checkpoint
 
-        # label(self.latent_name)
         if implot.begin_plot(self.name, [self.viz.pane_w // 3, self.viz.pane_w // 3]):
             implot.setup_axes_limits(self.limits[0], self.limits[1], self.limits[0], self.limits[1], True)
             _changed, self.pos.x, self.pos.y, _, _, _ = implot.drag_point(0, self.pos.x, self.pos.y, imgui.ImVec4([*self.color, 1]), self.size, out_clicked=True)
             implot.end_plot()
         self.pos.x = np.clip(self.pos.x, self.limits[0], self.limits[1])
         self.pos.y = np.clip(self.pos.y, self.limits[0], self.limits[1])
+
+        label(self.name, self.viz.label_w)
+        if imgui.button(f"Reset {self.name}", size=ImVec2(self.viz.label_w_large, 0)):
+            self.pos.val = [0]*self.num_components
+        imgui.new_line()
+
+        for i in range(self.num_components):
+            label(f"PCA{i}", self.viz.label_w)
+            imgui.push_item_width(300)
+            self.pos.val[i] = slider(self.pos.val[i], "##" + self.name + str(i) + "_slider",  self.min_val, self.max_val)
+            imgui.pop_item_width()
+
+            imgui.same_line()
+            imgui.push_item_width(100)
+            _changed, self.pos.val[i] = imgui.input_float("##" + self.name + str(i) + "_input_field", self.pos.val[i])
+            imgui.pop_item_width()
 
         if self.add_to_args:
             setattr(self.viz.args, self.name, self.pos)
@@ -248,6 +268,7 @@ class ColorHist:
         self.name = name
         self.num_colors = num_colors
         self.colors = np.ones([self.num_colors, 3])
+        self.weight = 0
         self.colors[0] *= 0.5
         self.colors[1] *= 0.0
 
@@ -255,11 +276,12 @@ class ColorHist:
         self.add_to_args = add_to_args
         if self.add_to_args:
             setattr(self.viz.args, self.name, self._calc_hist())
+            setattr(self.viz.args, self.name + "_weight", self.weight)
 
     def _calc_hist(self):
-        r_hist, _bin_borders = np.histogram(self.colors[:, 0], bins=10, range=(0, 1.0))
-        g_hist, _bin_borders = np.histogram(self.colors[:, 1], bins=10, range=(0, 1.0))
-        b_hist, _bin_borders = np.histogram(self.colors[:, 2], bins=10, range=(0, 1.0))
+        r_hist, _bin_borders = np.histogram(self.colors[:, 0], bins=bin_size // 3, range=(0, 1.0))
+        g_hist, _bin_borders = np.histogram(self.colors[:, 1], bins=bin_size // 3, range=(0, 1.0))
+        b_hist, _bin_borders = np.histogram(self.colors[:, 2], bins=bin_size // 3, range=(0, 1.0))
 
         r_hist = r_hist.astype(float) / 3
         g_hist = g_hist.astype(float) / 3
@@ -267,21 +289,26 @@ class ColorHist:
 
         # Save result
         result = torch.tensor(np.concatenate([r_hist, g_hist, b_hist]), device=self.device)[None, ...]
-        #print(result)
         return result
 
     def __call__(self):
-        # label(self.name, width=self.viz.label_w)
-        imgui.push_item_width(200)
-        # imgui.new_line()
+        label(self.name, width=self.viz.label_w)
+
+        imgui.new_line()
         for i in range(self.num_colors):
             imgui.same_line()
+            imgui.push_item_width(300)
             changed, self.colors[i] = imgui.color_picker3("##" + self.name + f"_color_{i}", self.colors[i].tolist())
+            imgui.pop_item_width()
 
+        label(f"{self.name} Weight", self.viz.label_w)
+        imgui.push_item_width(200)
+        self.weight = slider(self.weight, "##" + self.name + f"_color_weight_slider", 0, 1)
         imgui.pop_item_width()
+
         if self.add_to_args:
             setattr(self.viz.args, self.name, self._calc_hist())
-
+            setattr(self.viz.args, self.name + "_weight", self.weight)
 
 
 class ColorHistYCbCr:
@@ -308,9 +335,9 @@ class ColorHistYCbCr:
         Cr = 0.5 * R - 0.4187 * G - 0.0813 * B + 128
 
 
-        Y_hist, _bin_borders =  np.histogram(Y,  bins=10, range=(0, 255))
-        Cb_hist, _bin_borders = np.histogram(Cb, bins=10, range=(0, 255))
-        Cr_hist, _bin_borders = np.histogram(Cr, bins=10, range=(0, 255))
+        Y_hist, _bin_borders =  np.histogram(Y,  bins=bin_size // 3, range=(0, 255))
+        Cb_hist, _bin_borders = np.histogram(Cb, bins=bin_size // 3, range=(0, 255))
+        Cr_hist, _bin_borders = np.histogram(Cr, bins=bin_size // 3, range=(0, 255))
 
         Y_hist = Y_hist.astype(float) / self.num_colors
         Cb_hist = Cb_hist.astype(float) / self.num_colors
@@ -322,7 +349,7 @@ class ColorHistYCbCr:
         return result
 
     def __call__(self):
-        # label(self.name, width=self.viz.label_w)
+        label(self.name, width=self.viz.label_w)
         imgui.push_item_width(200)
         # imgui.new_line()
         for i in range(self.num_colors):
@@ -333,3 +360,30 @@ class ColorHistYCbCr:
         imgui.pop_item_width()
         if self.add_to_args:
             setattr(self.viz.args, self.name, self._calc_hist())
+
+
+class PCALatentSpace:
+    def __init__(self, viz, name, num_components=50, add_to_args=False):
+        self.viz = viz
+        self.name = name
+        self.num_components = num_components
+        self.value = np.zeros(num_components)
+        self.min_val = -3
+        self.max_val = 3
+
+        self.add_to_args = add_to_args
+        if self.add_to_args:
+            setattr(self.viz.args, self.name, self.value)
+
+
+    def __call__(self):
+        label(self.name, self.viz.label_w)
+        if imgui.button(f"Reset {self.name}", size=ImVec2(self.viz.label_w_large, 0)):
+            self.value = np.zeros(self.num_components)
+        imgui.new_line()
+        for i in range(self.num_components):
+            self.value[i] = slider(self.value[i], "##" + self.name + str(i) + "_slider",  self.min_val, self.max_val)
+            imgui.same_line()
+            _changed, self.value[i] = imgui.input_float("##" + self.name + str(i) + "_input_field", self.value[i])
+        if self.add_to_args:
+            setattr(self.viz.args, self.name, self.value)

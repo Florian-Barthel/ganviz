@@ -1,2 +1,0 @@
-import glfw
-glfw.init()
