@@ -5,51 +5,86 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
 dependencies = [
-  "albucore",
+  # build
+  "setuptools",
+  "ninja",
+
+  # general
+  "albucore==0.0.16",
   "click",
   "gdown",
-  "glfw",
-  "gputil",
+  "tqdm",
+  "opencv-python",
+  "pillow",
+
+  # 3dgs
   "imagecodecs[all]>=2025.3.30",
+  "plyfile",
+  "pandas>=2.3.3",
+
+  # gui
   "imgui==2.0.0",
   "imgui-bundle==1.5.2",
-  "insightface",
-  "lpips",
-  "ninja",
-  "onnxruntime",
-  "opencv-python",
-  "pandas>=2.3.3",
-  "pillow",
-  "plyfile",
-  "pynvml",
-  "pyopengl",
+  "glfw",
   "requests",
-  "setuptools>=80.9.0",
-  "torch",
-  "tqdm",
-  "torchvision",
-  "diff-gaussian-rasterization",
+  "pyopengl",
+  "gputil",
+  "pynvml",
+
+  # inversion
+  "lpips",
+  "insightface",
+  "onnxruntime",
 ]
-[tool.uv.extra-build-dependencies]
-file = ["setuptools"]
+
+[project.optional-dependencies]
+cu118 = ["torch", "torchvision"]
+cu126 = ["torch", "torchvision"]
+cu128 = ["torch", "torchvision"]
+cu130 = ["torch", "torchvision"]
+
+[tool.uv]
+package = false
+conflicts = [
+  [
+    { extra = "cu118" },
+    { extra = "cu126" },
+    { extra = "cu128" },
+    { extra = "cu130" },
+  ],
+]
+
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+  { index = "pytorch-cu118", extra = "cu118" },
+  { index = "pytorch-cu126", extra = "cu126" },
+  { index = "pytorch-cu128", extra = "cu128" },
+  { index = "pytorch-cu130", extra = "cu130" },
 ]
 torchvision = [
-  { index = "torchvision-cu130", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+  { index = "pytorch-cu118", extra = "cu118" },
+  { index = "pytorch-cu126", extra = "cu126" },
+  { index = "pytorch-cu128", extra = "cu128" },
+  { index = "pytorch-cu130", extra = "cu130" },
 ]
-diff-gaussian-rasterization= { path = "./diff-gaussian-rasterization" }
-
-
 
 [[tool.uv.index]]
-name = "pytorch-cu130"
-url = "https://download.pytorch.org/whl/cu130"
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
 explicit = true
 
 [[tool.uv.index]]
-name = "torchvision-cu130"
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true

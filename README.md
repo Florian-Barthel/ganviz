@@ -10,25 +10,42 @@
 
 ## Install
 
-### 1. Clone
+## Install
 
-Clone repository **recursively** in order to install glm from the diff_gaussian_rasterization package.
+Install `uv` first if it is not already available. See the official
+[uv installation guide](https://docs.astral.sh/uv/getting-started/installation/), or use the standalone installer:
 
 ```bash
-git clone https://github.com/Florian-Barthel/ganviz.git --recursive
-cd ganviz
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-sudo apt install cmake
+Install the CUDA Toolkit:
+[11.8](https://developer.nvidia.com/cuda-11-8-0-download-archive)
+[12.1](https://developer.nvidia.com/cuda-12-1-1-download-archive)
+[12.4](https://developer.nvidia.com/cuda-12-4-1-download-archive)
+[12.6](https://developer.nvidia.com/cuda-12-6-3-download-archive)
+[12.8](https://developer.nvidia.com/cuda-12-8-2-download-archive)
+[12.9](https://developer.nvidia.com/cuda-12-9-1-download-archive)
+[13.0](https://developer.nvidia.com/cuda-13-0-3-download-archive)
 
-### 2. Install Environment
+After installing `uv` and CUDA, clone and install splatviz:
 
-Create environment with [uv](https://docs.astral.sh/uv/getting-started/installation/):
+```bash
+git clone https://github.com/Florian-Barthel/splatviz.git
+cd splatviz
 
+uv sync --group <cuda-group>
 
-```shell
-uv sync
-uv pip install .\diff-gaussian-rasterization\ --no-build-isolation
+uv pip install --no-build-isolation git+https://github.com/ashawkey/diff-gaussian-rasterization.git
+```
+
+Replace `<cuda-group>` with the `uv` CUDA group that matches your system:
+
+```bash
+uv sync --extra cu118
+uv sync --extra cu126
+uv sync --extra cu128
+uv sync --extra cu130
 ```
 
 Clone CGS-GAN:
