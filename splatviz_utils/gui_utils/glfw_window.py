@@ -259,24 +259,54 @@ class GlfwWindow:
         self.gamepad_axes = {}
 
         for joystick_id in range(glfw.JOYSTICK_1, glfw.JOYSTICK_LAST + 1):
-            if not glfw.joystick_present(joystick_id) or not glfw.joystick_is_gamepad(joystick_id):
+            if not glfw.joystick_present(joystick_id):
                 continue
 
-            state = glfw.get_gamepad_state(joystick_id)
-            if state is None:
+            if glfw.joystick_is_gamepad(joystick_id):
+                state = glfw.get_gamepad_state(joystick_id)
+                if state is None:
+                    continue
+
+                self.gamepad_connected = True
+                self.gamepad_name = glfw.get_gamepad_name(joystick_id)
+                self.gamepad_axes = {
+                    "left_x": state.axes[glfw.GAMEPAD_AXIS_LEFT_X],
+                    "left_y": state.axes[glfw.GAMEPAD_AXIS_LEFT_Y],
+                    "right_x": state.axes[glfw.GAMEPAD_AXIS_RIGHT_X],
+                    "right_y": state.axes[glfw.GAMEPAD_AXIS_RIGHT_Y],
+                    "left_trigger": state.axes[glfw.GAMEPAD_AXIS_LEFT_TRIGGER],
+                    "right_trigger": state.axes[glfw.GAMEPAD_AXIS_RIGHT_TRIGGER],
+                }
+                break
+
+            axes = glfw.get_joystick_axes(joystick_id)
+            if axes is None or len(axes) < 4:
                 continue
 
             self.gamepad_connected = True
-            self.gamepad_name = glfw.get_gamepad_name(joystick_id)
-            self.gamepad_axes = {
-                "left_x": state.axes[glfw.GAMEPAD_AXIS_LEFT_X],
-                "left_y": state.axes[glfw.GAMEPAD_AXIS_LEFT_Y],
-                "right_x": state.axes[glfw.GAMEPAD_AXIS_RIGHT_X],
-                "right_y": state.axes[glfw.GAMEPAD_AXIS_RIGHT_Y],
-                "left_trigger": state.axes[glfw.GAMEPAD_AXIS_LEFT_TRIGGER],
-                "right_trigger": state.axes[glfw.GAMEPAD_AXIS_RIGHT_TRIGGER],
-            }
+            self.gamepad_name = glfw.get_joystick_name(joystick_id)
+            self.gamepad_axes = self._raw_xbox_axes(axes)
             break
+
+    @staticmethod
+    def _raw_xbox_axes(axes):
+        axes = [float(axis) for axis in axes]
+        right_x_index = 3 if len(axes) > 4 else 2
+        right_y_index = 4 if len(axes) > 4 else 3
+        return {
+            "left_x": axes[0],
+            "left_y": axes[1],
+            "right_x": axes[right_x_index],
+            "right_y": axes[right_y_index],
+            "left_trigger": GlfwWindow._raw_trigger_axis(axes[2] if len(axes) > 5 else -1.0),
+            "right_trigger": GlfwWindow._raw_trigger_axis(axes[5] if len(axes) > 5 else -1.0),
+        }
+
+    @staticmethod
+    def _raw_trigger_axis(value):
+        if 0.0 <= value <= 1.0:
+            return value * 2.0 - 1.0
+        return value
 
     def _glfw_key_callback(self, _window, key, _scancode, action, _mods):
         if action == glfw.PRESS and key == glfw.KEY_ESCAPE:
