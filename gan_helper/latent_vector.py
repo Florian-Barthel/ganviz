@@ -6,7 +6,7 @@ from sklearn.decomposition import PCA
 
 
 class LatentMapRandom:
-    def __init__(self, cols_rows=10, device="cuda"):
+    def __init__(self, cols_rows=20, device="cuda"):
         self.device = device
         self.cols_rows = cols_rows
         self.z_map = torch.randn([1, 512, cols_rows, cols_rows], device=device, dtype=torch.float)
@@ -15,17 +15,40 @@ class LatentMapRandom:
     def get_latent(self, latent_x, latent_y, latent_space):
         latent_x = torch.tensor(latent_x, device=self.device, dtype=torch.float)
         latent_y = torch.tensor(latent_y, device=self.device, dtype=torch.float)
-        position = torch.stack([latent_x, latent_y]).reshape(1, 1, 1, 2)
         if latent_space == "Z":
-            z = torch.nn.functional.grid_sample(self.z_map, position, padding_mode="reflection", align_corners=False)
+            z = self.sample_tiled(self.z_map, latent_x, latent_y)
             return z.reshape(1, 512)
         elif latent_space == "W":
             if self.w_map is None:
                 raise AssertionError("call load_w_map(mapping_network) first)")
-            w = torch.nn.functional.grid_sample(self.w_map, position, padding_mode="reflection", align_corners=False)
+            w = self.sample_tiled(self.w_map, latent_x, latent_y)
             return w.reshape(1, 512)
         else:
             raise NotImplementedError
+
+    def sample_tiled(self, latent_map, latent_x, latent_y):
+        width = latent_map.shape[3]
+        height = latent_map.shape[2]
+
+        x = torch.remainder(latent_x + 1.0, 2.0) / 2.0 * width
+        y = torch.remainder(latent_y + 1.0, 2.0) / 2.0 * height
+
+        x0 = torch.floor(x).long() % width
+        y0 = torch.floor(y).long() % height
+        x1 = (x0 + 1) % width
+        y1 = (y0 + 1) % height
+
+        wx = (x - torch.floor(x)).reshape(1, 1)
+        wy = (y - torch.floor(y)).reshape(1, 1)
+
+        top_left = latent_map[:, :, y0, x0]
+        top_right = latent_map[:, :, y0, x1]
+        bottom_left = latent_map[:, :, y1, x0]
+        bottom_right = latent_map[:, :, y1, x1]
+
+        top = top_left * (1.0 - wx) + top_right * wx
+        bottom = bottom_left * (1.0 - wx) + bottom_right * wx
+        return top * (1.0 - wy) + bottom * wy
 
     def load_w_map(self, mapping_network, truncation_psi):
         intrinsics = get_default_intrinsics().to(self.device)

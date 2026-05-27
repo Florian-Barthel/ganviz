@@ -1,4 +1,6 @@
 import cv2
+from imgui_bundle import imgui
+
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils.interface_imgui import InputInt, InputTensor, CheckboxInput, Combo
 from widgets.widget import Widget
@@ -60,6 +62,10 @@ class RenderWidget(Widget):
             alpha_changed = self.render_alpha_checkbox()
             depth_changed = self.render_depth_checkbox()
             self.colormap_combo()
+            if imgui_utils.button("Fullscreen renderer", width=viz.button_large_w):
+                viz.set_renderer_fullscreen(True)
+            imgui.same_line()
+            imgui.text(f"{viz.monitor_display_resolution[0]}x{viz.monitor_display_resolution[1]}")
 
             if self.render_alpha_checkbox.value and alpha_changed:
                 self.render_depth_checkbox.value = False

@@ -51,6 +51,8 @@ class GANRenderer(Renderer):
         img_normalize=False,
         latent_x=0.0,
         latent_y=0.0,
+        render_width=None,
+        render_height=None,
         save_ply_path=None,
         truncation_psi=1.0,
         mapping_conditioning="frontal",
@@ -124,8 +126,11 @@ class GANRenderer(Renderer):
         exec(edit_text)
 
         # render 3DGS scene
+        render_width = int(render_width or resolution)
+        render_height = int(render_height or resolution)
         fov_rad = fov / 360 * 2 * np.pi
-        render_cam = CustomCam(resolution, resolution, fovy=fov_rad, fovx=fov_rad, extr=cam_params)
+        fovx_rad = 2 * np.arctan(np.tan(fov_rad / 2) * render_width / max(render_height, 1))
+        render_cam = CustomCam(render_width, render_height, fovy=fov_rad, fovx=fovx_rad, extr=cam_params)
         img = render_simple(viewpoint_camera=render_cam, pc=gs, bg_color=background_color.to(self.device))["render"]
 
         # return / eval / save scene
@@ -165,8 +170,8 @@ class GANRenderer(Renderer):
 
     def extract_gaussians(self, gan_result):
 
-        gan_model = EasyDict(gan_result["gaussian_params"])
-        #gan_model = EasyDict(gan_result["gaussian_params"][0])
+        # gan_model = EasyDict(gan_result["gaussian_params"])
+        gan_model = EasyDict(gan_result["gaussian_params"][0])
 
         self.gaussian_model._xyz = gan_model._xyz
         self.gaussian_model._features_dc = gan_model._features_dc

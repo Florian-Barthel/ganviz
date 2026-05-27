@@ -40,6 +40,8 @@ class GANRenderer(Renderer):
         img_normalize,
         latent_x,
         latent_y,
+        render_width=None,
+        render_height=None,
         latent_space="W",
         save_ply_path=None,
         truncation_psi=1.0,
@@ -77,8 +79,11 @@ class GANRenderer(Renderer):
         exec(edit_text)
 
         # render 3DGS
+        render_width = int(render_width or resolution)
+        render_height = int(render_height or resolution)
         fov_rad = fov / 360 * 2 * np.pi
-        render_cam = CustomCam(resolution, resolution, fovy=fov_rad, fovx=fov_rad, extr=cam_params)
+        fovx_rad = 2 * np.arctan(np.tan(fov_rad / 2) * render_width / max(render_height, 1))
+        render_cam = CustomCam(render_width, render_height, fovy=fov_rad, fovx=fovx_rad, extr=cam_params)
         img = render_simple(viewpoint_camera=render_cam, pc=gs, bg_color=background_color.to("cuda"))["render"]
 
         # return / eval / save 3DGS

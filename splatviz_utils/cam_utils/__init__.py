@@ -57,7 +57,7 @@ def rotate_coordinates(coordinates, vector):
         return coordinates
     unit_vector = normalize_vecs(vector)
 
-    base_vector = torch.tensor([0.0, -1.0, 0.0], device=coordinates.device)
+    base_vector = torch.tensor([0.0, 1.0, 0.0], device=coordinates.device)
     theta = torch.arccos(torch.dot(unit_vector, base_vector))  # Angle of rotation
     if theta == 0:
         rotation_matrix = torch.eye(3, device=coordinates.device)

@@ -10,8 +10,14 @@ from splatviz_utils.cam_utils import (
     get_origin,
     normalize_vecs,
 )
-from splatviz_utils.gui_utils.interface_imgui import Combo, Slider, InputTensor, InputFloat
+from splatviz_utils.gui_utils.interface_imgui import CheckboxInput, Combo, Slider, InputTensor, InputFloat
 from widgets.widget import Widget
+
+
+HORIZONTAL_ANGLE_MIN = 0.0
+HORIZONTAL_ANGLE_MAX = np.pi
+VERTICAL_ANGLE_MIN = 0.2 * np.pi
+VERTICAL_ANGLE_MAX = 0.8 * np.pi
 
 
 class CamWidget(Widget):
@@ -41,12 +47,16 @@ class CamWidget(Widget):
         self.momentum_slider = Slider(viz, "momentum", 0.3, 0.0, 0.999)
         self.momentum_dropoff_slider = Slider(viz, "momentum_dropoff", 0.8, 0.0, 1.0)
         self.rotate_speed_slider = Slider(viz, "rotate_speed", 0.005, 0.002, 0.1, log=True)
+        self.gamepad_camera_checkbox = CheckboxInput(viz, "xbox camera", True)
+        self.gamepad_camera_speed_slider = Slider(viz, "xbox camera speed", 2.0, 0.1, 10.0, log=True)
+        self.gamepad_fov_speed_slider = Slider(viz, "xbox fov speed", 20.0, 1.0, 180.0, log=True)
+        self.gamepad_deadzone_slider = Slider(viz, "xbox deadzone", 0.18, 0.0, 0.5)
 
         # cam matrix
         self.up_vector_tensor_input = InputTensor(viz, "up_vector", [0.0, up_direction, 0.0], device=device)
         self.fov_slider = Slider(viz, "fov", fov, 1, 180, format="%.2f °", add_to_args=True, with_input_field=True)
-        self.yaw_input = InputFloat(viz, "yaw", np.pi)
-        self.pitch_input = InputFloat(viz, "pitch", 0)
+        self.yaw_input = InputFloat(viz, "yaw", np.pi / 2)
+        self.pitch_input = InputFloat(viz, "pitch", np.pi / 2)
         self.yaw_cond_input = InputFloat(viz, "yaw cond", np.pi)
         self.pitch_cond_input = InputFloat(viz, "pitch cond", 0)
         self.radius_slider = Slider(viz, "radius", radius, 20, with_input_field=True)
@@ -59,7 +69,7 @@ class CamWidget(Widget):
         active_region = EasyDict(x=viz.pane_w, y=0, width=viz.content_width - viz.pane_w, height=viz.content_height)
         self.handle_dragging_in_window(**active_region)
         self.handle_mouse_wheel()
-        self.handle_wasd()
+        self.handle_gamepad()
 
         if show:
             self.cam_conditioning_combo()
@@ -72,6 +82,10 @@ class CamWidget(Widget):
             self.momentum_slider()
             self.momentum_dropoff_slider()
             self.rotate_speed_slider()
+            self.gamepad_camera_checkbox()
+            self.gamepad_camera_speed_slider()
+            self.gamepad_fov_speed_slider()
+            self.gamepad_deadzone_slider()
 
             imgui.text("\nCamera Matrix")
             imgui.push_item_width(200)
@@ -103,6 +117,8 @@ class CamWidget(Widget):
                     self.lookat_point_tensor.value = viz.result.mean_xyz
             imgui.pop_item_width()
 
+        self.clamp_camera_angles()
+        self.handle_wasd()
 
         self.cam_cond_params = create_cam2world_matrix(self.forward_cond, self.cam_pos_cond, self.up_vector_tensor_input.value)[0]
         self.cam_params = create_cam2world_matrix(self.forward, self.cam_pos, self.up_vector_tensor_input.value)[0]
@@ -122,8 +138,8 @@ class CamWidget(Widget):
             if imgui_utils.did_drag_start_in_window(x, y, width, height, new_delta):
                 delta = new_delta - self.last_drag_delta
                 self.last_drag_delta = new_delta
-                self.momentum_x = delta.x * self.rotate_speed_slider.value * (1 - self.momentum_slider.value) + (self.momentum_x * self.momentum_slider.value)
-                self.momentum_y = delta.y * self.rotate_speed_slider.value * (1 - self.momentum_slider.value) + (self.momentum_y * self.momentum_slider.value)
+                self.momentum_x = -delta.x * self.rotate_speed_slider.value * (1 - self.momentum_slider.value) + (self.momentum_x * self.momentum_slider.value)
+                self.momentum_y = -delta.y * self.rotate_speed_slider.value * (1 - self.momentum_slider.value) + (self.momentum_y * self.momentum_slider.value)
 
         elif imgui.is_mouse_dragging(2) or imgui.is_mouse_dragging(1):  # right mouse button or middle mouse button
             new_delta = imgui.get_mouse_drag_delta(2)
@@ -149,15 +165,12 @@ class CamWidget(Widget):
         if self.cam_conditioning_combo.value == "cam":
             self.yaw_input.value += self.momentum_x
             self.pitch_input.value += self.momentum_y
-            self.pitch_input.value = np.clip(self.pitch_input.value, -np.pi / 2, np.pi / 2)
         if self.cam_conditioning_combo.value == "cond":
             self.yaw_cond_input.value += self.momentum_x
             self.pitch_cond_input.value += self.momentum_y
-            self.pitch_cond_input.value = np.clip(self.pitch_cond_input.value, -np.pi / 2, np.pi / 2)
         if self.cam_conditioning_combo.value == "same":
             self.yaw_input.value += self.momentum_x
             self.pitch_input.value += self.momentum_y
-            self.pitch_input.value = np.clip(self.pitch_input.value, -np.pi / 2, np.pi / 2)
             self.yaw_cond_input.value = self.yaw_input.value
             self.pitch_cond_input.value = self.pitch_input.value
         self.momentum_x *= self.momentum_dropoff_slider.value
@@ -167,8 +180,8 @@ class CamWidget(Widget):
         if self.cam_mode_combo.value == "WASD":
             self.forward = get_forward_vector(
                 lookat_position=self.cam_pos,
-                horizontal_mean=self.yaw_input.value + np.pi / 2,
-                vertical_mean=self.pitch_input.value + np.pi / 2,
+                horizontal_mean=self.yaw_input.value,
+                vertical_mean=self.pitch_input.value,
                 radius=0.01,
                 up_vector=self.up_vector_tensor_input.value,
             )
@@ -188,15 +201,15 @@ class CamWidget(Widget):
 
         elif self.cam_mode_combo.value == "Orbit":
             self.cam_pos = get_origin(
-                self.yaw_input.value + np.pi / 2,
-                self.pitch_input.value + np.pi / 2,
+                self.yaw_input.value,
+                self.pitch_input.value,
                 self.radius_slider.value,
                 self.lookat_point_tensor.value,
                 up_vector=self.up_vector_tensor_input.value,
             )
             self.cam_pos_cond = get_origin(
-                self.yaw_cond_input.value + np.pi / 2,
-                self.pitch_cond_input.value + np.pi / 2,
+                self.yaw_cond_input.value,
+                self.pitch_cond_input.value,
                 self.radius_cond_slider.value,
                 self.lookat_point_tensor.value,
                 up_vector=self.up_vector_tensor_input.value,
@@ -214,3 +227,55 @@ class CamWidget(Widget):
                 self.cam_pos_cond += self.forward * self.move_speed_slider.value * wheel
             elif self.cam_mode_combo.value == "Orbit":
                 self.radius_slider.value -= wheel / 10
+
+    def handle_gamepad(self):
+        if not self.gamepad_camera_checkbox.value or not self.viz.gamepad_connected:
+            return
+
+        x = self.apply_gamepad_deadzone(self.viz.gamepad_axes.get("right_x", 0.0))
+        y = self.apply_gamepad_deadzone(self.viz.gamepad_axes.get("right_y", 0.0))
+        left_trigger = self.apply_gamepad_trigger(self.viz.gamepad_axes.get("left_trigger", -1.0))
+        right_trigger = self.apply_gamepad_trigger(self.viz.gamepad_axes.get("right_trigger", -1.0))
+
+        delta = self.gamepad_camera_speed_slider.value * self.viz.frame_delta
+        yaw_change = -x * delta
+        pitch_change = -y * delta
+
+        self.yaw_input.value += yaw_change
+        self.pitch_input.value += pitch_change
+        self.fov_slider.value += (left_trigger - right_trigger) * self.gamepad_fov_speed_slider.value * self.viz.frame_delta
+        self.fov_slider.value = np.clip(self.fov_slider.value, self.fov_slider.min_val, self.fov_slider.max_val)
+        self.viz.args.fov = self.fov_slider.value
+
+        if self.cam_conditioning_combo.value == "same":
+            self.yaw_cond_input.value = self.yaw_input.value
+            self.pitch_cond_input.value = self.pitch_input.value
+
+    def apply_gamepad_deadzone(self, value):
+        value = float(value)
+        deadzone = self.gamepad_deadzone_slider.value
+        if abs(value) <= deadzone:
+            return 0.0
+        return np.sign(value) * (abs(value) - deadzone) / (1.0 - deadzone)
+
+    def apply_gamepad_trigger(self, value):
+        value = (float(value) + 1.0) / 2.0
+        deadzone = self.gamepad_deadzone_slider.value
+        if value <= deadzone:
+            return 0.0
+        return (value - deadzone) / (1.0 - deadzone)
+
+    def clamp_camera_angles(self):
+        yaw_min = HORIZONTAL_ANGLE_MIN
+        yaw_max = HORIZONTAL_ANGLE_MAX
+        pitch_min = VERTICAL_ANGLE_MIN
+        pitch_max = VERTICAL_ANGLE_MAX
+
+        self.yaw_input.value = np.clip(self.yaw_input.value, yaw_min, yaw_max)
+        self.pitch_input.value = np.clip(self.pitch_input.value, pitch_min, pitch_max)
+        self.yaw_cond_input.value = np.clip(self.yaw_cond_input.value, yaw_min, yaw_max)
+        self.pitch_cond_input.value = np.clip(self.pitch_cond_input.value, pitch_min, pitch_max)
+
+        if self.cam_conditioning_combo.value == "same":
+            self.yaw_cond_input.value = self.yaw_input.value
+            self.pitch_cond_input.value = self.pitch_input.value

@@ -211,6 +211,7 @@ class LatentSpace:
         if dragging:
             self.x += dx * 0.0005
             self.y -= dy * 0.0005
+            self.wrap()
 
         label("Latent")
         with imgui_utils.item_width(self.viz.font_size * 8):
@@ -218,17 +219,21 @@ class LatentSpace:
             if changed:
                 self.x = x_man
                 self.y = y_man
+                self.wrap()
 
         if implot.begin_plot(self.name, [self.viz.pane_w // 2, self.viz.pane_w // 2]):
             implot.setup_axes_limits(-1, 1, -1, 1, True)
             _changed, self.x, self.y, _, _, _ = implot.drag_point(0, self.x, self.y, imgui.ImVec4([*self.color, 1]), self.size, out_clicked=True)
             implot.end_plot()
-        self.x = np.clip(self.x, -1, 1)
-        self.y = np.clip(self.y, -1, 1)
+        self.wrap()
 
         if self.add_to_args:
             setattr(self.viz.args, self.name + self.name_x, self.x)
             setattr(self.viz.args, self.name + self.name_y, self.y)
+
+    def wrap(self):
+        self.x = ((self.x + 1.0) % 2.0) - 1.0
+        self.y = ((self.y + 1.0) % 2.0) - 1.0
 
 
 

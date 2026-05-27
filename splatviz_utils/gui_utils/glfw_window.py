@@ -32,6 +32,14 @@ class GlfwWindow:
         self._capture_next_frame = False
         self._captured_frame = None
         self.current_pressed_keys = set()
+        self.current_key_presses = set()
+        self.gamepad_connected = False
+        self.gamepad_name = None
+        self.gamepad_axes = {}
+        self._windowed_pos = None
+        self._windowed_size = None
+        self._windowed_decorated = True
+        self._is_fullscreen = False
 
         # Create window.
         glfw.init()
@@ -99,6 +107,11 @@ class GlfwWindow:
         return height
 
     @property
+    def monitor_display_resolution(self):
+        video_mode = glfw.get_video_mode(glfw.get_primary_monitor())
+        return video_mode.size.width, video_mode.size.height
+
+    @property
     def frame_delta(self):
         return self._frame_delta
 
@@ -117,6 +130,32 @@ class GlfwWindow:
 
     def maximize(self):
         glfw.maximize_window(self._glfw_window)
+
+    def set_fullscreen(self, fullscreen):
+        fullscreen = bool(fullscreen)
+        if fullscreen == self._is_fullscreen:
+            return
+
+        monitor = glfw.get_primary_monitor()
+        video_mode = glfw.get_video_mode(monitor)
+        if fullscreen:
+            self._windowed_pos = glfw.get_window_pos(self._glfw_window)
+            self._windowed_size = glfw.get_window_size(self._glfw_window)
+            self._windowed_decorated = bool(glfw.get_window_attrib(self._glfw_window, glfw.DECORATED))
+            monitor_x, monitor_y = glfw.get_monitor_pos(monitor)
+            glfw.set_window_attrib(self._glfw_window, glfw.DECORATED, False)
+            glfw.restore_window(self._glfw_window)
+            glfw.set_window_pos(self._glfw_window, monitor_x, monitor_y)
+            glfw.set_window_size(self._glfw_window, video_mode.size.width, video_mode.size.height)
+        else:
+            windowed_pos = self._windowed_pos or (0, 0)
+            windowed_size = self._windowed_size or (min(1920, self.monitor_width), min(1080, self.monitor_height))
+            glfw.set_window_attrib(self._glfw_window, glfw.DECORATED, self._windowed_decorated)
+            glfw.restore_window(self._glfw_window)
+            glfw.set_window_pos(self._glfw_window, windowed_pos[0], windowed_pos[1])
+            glfw.set_window_size(self._glfw_window, windowed_size[0], windowed_size[1])
+
+        self._is_fullscreen = fullscreen
 
     def set_position(self, x, y):
         glfw.set_window_pos(self._glfw_window, x, y + self.title_bar_height)
@@ -172,7 +211,9 @@ class GlfwWindow:
         self._frame_start_time = cur_time
 
         # Process events.
+        self.current_key_presses = set()
         glfw.poll_events()
+        self._poll_gamepad()
 
         # Begin frame.
         self._drawing_frame = True
@@ -212,13 +253,44 @@ class GlfwWindow:
         glfw.set_key_callback(self._glfw_window, self._glfw_key_callback)
         glfw.set_drop_callback(self._glfw_window, self._glfw_drop_callback)
 
+    def _poll_gamepad(self):
+        self.gamepad_connected = False
+        self.gamepad_name = None
+        self.gamepad_axes = {}
+
+        for joystick_id in range(glfw.JOYSTICK_1, glfw.JOYSTICK_LAST + 1):
+            if not glfw.joystick_present(joystick_id) or not glfw.joystick_is_gamepad(joystick_id):
+                continue
+
+            state = glfw.get_gamepad_state(joystick_id)
+            if state is None:
+                continue
+
+            self.gamepad_connected = True
+            self.gamepad_name = glfw.get_gamepad_name(joystick_id)
+            self.gamepad_axes = {
+                "left_x": state.axes[glfw.GAMEPAD_AXIS_LEFT_X],
+                "left_y": state.axes[glfw.GAMEPAD_AXIS_LEFT_Y],
+                "right_x": state.axes[glfw.GAMEPAD_AXIS_RIGHT_X],
+                "right_y": state.axes[glfw.GAMEPAD_AXIS_RIGHT_Y],
+                "left_trigger": state.axes[glfw.GAMEPAD_AXIS_LEFT_TRIGGER],
+                "right_trigger": state.axes[glfw.GAMEPAD_AXIS_RIGHT_TRIGGER],
+            }
+            break
+
     def _glfw_key_callback(self, _window, key, _scancode, action, _mods):
         if action == glfw.PRESS and key == glfw.KEY_ESCAPE:
+            if self._is_fullscreen:
+                self.set_fullscreen(False)
+                if hasattr(self, "renderer_fullscreen"):
+                    self.renderer_fullscreen = False
+                return
             self._esc_pressed = True
 
         key_char = glfw.get_key_name(key, glfw.get_key_scancode(key))
         if action == glfw.PRESS:
             self.current_pressed_keys.add(key_char)
+            self.current_key_presses.add(key_char)
         if action == glfw.RELEASE and key_char in self.current_pressed_keys:
             self.current_pressed_keys.remove(key_char)
 

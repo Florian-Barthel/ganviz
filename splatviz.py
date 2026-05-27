@@ -10,8 +10,8 @@ torch.set_printoptions(precision=2, sci_mode=False)
 np.set_printoptions(precision=2)
 
 from renderer.renderer_wrapper import RendererWrapper
-# from renderer.gan_renderer import GANRenderer
-from renderer.gan_renderer_gghead import GANRenderer
+from renderer.gan_renderer import GANRenderer
+# from renderer.gan_renderer_gghead import GANRenderer
 from splatviz_utils.gui_utils import imgui_window
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils import gl_utils
@@ -48,6 +48,7 @@ class Splatviz(imgui_window.ImguiWindow):
             window_height=1080,
             font=self.regular_font_path,
             code_font=self.code_font_path,
+            close_on_esc=False,
         )
 
         self.code_font = imgui.get_io().fonts.add_font_from_file_ttf(self.code_font_path, 14)
@@ -78,6 +79,8 @@ class Splatviz(imgui_window.ImguiWindow):
         self.renderer = RendererWrapper(renderer, update_all_the_time)
         self._tex_img = None
         self._tex_obj = None
+        self.renderer_fullscreen = False
+        self._pending_renderer_fullscreen = None
 
         # Initialize window.
         self.set_position(0, 0)
@@ -103,30 +106,61 @@ class Splatviz(imgui_window.ImguiWindow):
             self.skip_frame()
 
     def _set_sizes(self):
-        self.pane_w = max(self.content_width - self.content_height, 500)
+        self.pane_w = 0 if self.renderer_fullscreen else max(self.content_width - self.content_height, 500)
         self.button_w = self.font_size * 5
         self.button_large_w = self.font_size * 10
         self.label_w = round(self.font_size * 5.5) + 100
         self.label_w_large = round(self.font_size * 5.5) + 150
 
+    def set_renderer_fullscreen(self, fullscreen):
+        self._pending_renderer_fullscreen = bool(fullscreen)
+
+    def get_fullscreen_render_size(self):
+        width = self.content_width
+        height = self.content_height
+        smaller_side = min(width, height)
+        if smaller_side <= 1024:
+            return width, height
+
+        scale = 1024 / smaller_side
+        return round(width * scale), round(height * scale)
+
     def draw_frame(self):
+        if self._pending_renderer_fullscreen is not None:
+            self.renderer_fullscreen = self._pending_renderer_fullscreen
+            self._pending_renderer_fullscreen = None
+            self.set_fullscreen(self.renderer_fullscreen)
+            self.skip_frame()
+
         self.begin_frame()
         self._set_sizes()
+        if "f" in self.current_key_presses:
+            self.set_renderer_fullscreen(not self.renderer_fullscreen)
+        if self.renderer_fullscreen and "escape" in self.current_pressed_keys:
+            self.set_renderer_fullscreen(False)
+            self.current_pressed_keys.discard("escape")
 
-        # Control pane
-        imgui.set_next_window_pos(imgui.ImVec2(0, 0))
-        imgui.set_next_window_size(imgui.ImVec2(self.pane_w, self.content_height))
-        control_pane_flags = WINDOW_NO_TITLE_BAR | WINDOW_NO_RESIZE | WINDOW_NO_MOVE
-        imgui.begin("##control_pane", p_open=True, flags=control_pane_flags)
+        if self.renderer_fullscreen:
+            for widget in self.widgets:
+                widget(False)
+            self.args.render_width, self.args.render_height = self.get_fullscreen_render_size()
+        else:
+            # Control pane
+            imgui.set_next_window_pos(imgui.ImVec2(0, 0))
+            imgui.set_next_window_size(imgui.ImVec2(self.pane_w, self.content_height))
+            control_pane_flags = WINDOW_NO_TITLE_BAR | WINDOW_NO_RESIZE | WINDOW_NO_MOVE
+            imgui.begin("##control_pane", p_open=True, flags=control_pane_flags)
 
-        # Widgets
-        for widget in self.widgets:
-            expanded, _visible = imgui_utils.collapsing_header(widget.name, default=widget.name == "Load")
-            imgui.indent()
-            widget(expanded)
-            imgui.unindent()
+            # Widgets
+            for widget in self.widgets:
+                expanded, _visible = imgui_utils.collapsing_header(widget.name, default=widget.name == "Load")
+                imgui.indent()
+                widget(expanded)
+                imgui.unindent()
+            self.args.render_width = None
+            self.args.render_height = None
 
-        # imgui.show_style_editor()
+            # imgui.show_style_editor()
 
         # Render
         if self.is_skipping_frames():
@@ -174,5 +208,6 @@ class Splatviz(imgui_window.ImguiWindow):
 
         # End frame.
         self._adjust_font_size()
-        imgui.end()
+        if not self.renderer_fullscreen:
+            imgui.end()
         self.end_frame()
