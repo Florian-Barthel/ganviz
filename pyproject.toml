@@ -3,39 +3,68 @@ name = "ganviz"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10,<3.11"
 dependencies = [
-  "albucore==0.0.16",
-  "click>=8.3.0",
-  "gdown>=5.2.0",
-  "glfw>=2.10.0",
-  "gputil>=1.4.0",
-  "imagecodecs[all]==2025.8.2",
-  "imgui==2.0.0",
-  "imgui-bundle==1.92.3",
-  "insightface>=0.7.3",
-  "lpips>=0.1.4",
-  "ninja>=1.13.0",
-  "numpy>=2.3.3",
-  "onnxruntime>=1.22.1",
-  "opencv-python>=4.11.0.86",
-  "pillow>=11.3.0",
-  "plyfile>=1.1.2",
-  "pynvml>=13.0.1",
-  "pyopengl>=3.1.10",
-  "requests>=2.32.5",
-  "scipy>=1.16.2",
-  "torch>=2.5",
-  "tqdm>=4.67.1",
+    # build
+    "setuptools",
+    "ninja",
+
+    # general
+    "albucore==0.0.16",
+    "click",
+    "gdown",
+    "tqdm",
+    "pillow",
+    "cairosvg",
+
+    # 3dgs
+    "imagecodecs[all]>=2025.3.30",
+    "pandas>=2.3.3",
+
+    # gui
+    "imgui",
+    "imgui-bundle",
+    "glfw",
+    "requests",
+    "pyopengl",
+    "gputil",
+    "pynvml",
+
+    # inversion
+    "lpips",
+    "insightface",
+    "onnxruntime",
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "matplotlib",
+    "pillow",
+    "imageio",
+    "imageio-ffmpeg",
+
+
+    # Logging / training tools
+    "wandb",
+    "tensorboard",
+    "psutil",
+
+    # Vision / CV
+    "opencv-python",
+    "pyspng",
+    "plyfile",
+
+    # 3D Gaussian rendering
+    "gsplat",
+    "torch",
 ]
+
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cu118", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+  { index = "pytorch-cu130" },
 ]
 
-
 [[tool.uv.index]]
-name = "pytorch-cu118"
-url = "https://download.pytorch.org/whl/cu118"
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true

@@ -1,6 +1,11 @@
+from io import BytesIO
+from pathlib import Path
+from xml.etree import ElementTree
+
 from imgui_bundle import imgui
 import numpy as np
 import torch
+from PIL import Image
 import sys
 sys.path.append("gan_inversion")
 sys.path.append("gan_preprocessing")
@@ -11,7 +16,6 @@ np.set_printoptions(precision=2)
 
 from renderer.renderer_wrapper import RendererWrapper
 from renderer.gan_renderer import GANRenderer
-# from renderer.gan_renderer_gghead import GANRenderer
 from splatviz_utils.gui_utils import imgui_window
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils import gl_utils
@@ -27,7 +31,6 @@ from widgets import (
     save,
     latent,
     render,
-    inversion
 )
 
 
@@ -51,10 +54,6 @@ class Splatviz(imgui_window.ImguiWindow):
             close_on_esc=False,
         )
 
-        self.code_font = imgui.get_io().fonts.add_font_from_file_ttf(self.code_font_path, 14)
-        self.regular_font = imgui.get_io().fonts.add_font_from_file_ttf(self.code_font_path, 14)
-        # self._imgui_renderer.refresh_font_texture()
-
         # Internals.
         self._last_error_print = None
 
@@ -70,7 +69,6 @@ class Splatviz(imgui_window.ImguiWindow):
             edit.EditWidget(self),
             eval.EvalWidget(self),
             latent.LatentWidget(self),
-            inversion.InversionWidget(self),
         ]
         self.gan_path = gan_path
         sys.path.append(gan_path)
@@ -79,6 +77,9 @@ class Splatviz(imgui_window.ImguiWindow):
         self.renderer = RendererWrapper(renderer, update_all_the_time)
         self._tex_img = None
         self._tex_obj = None
+        self._desc_tex_obj = None
+        self._desc_svg_path = Path(__file__).with_name("desc.svg")
+        self._desc_aspect_ratio = self._get_svg_aspect_ratio(self._desc_svg_path)
         self.renderer_fullscreen = False
         self._pending_renderer_fullscreen = None
 
@@ -115,8 +116,17 @@ class Splatviz(imgui_window.ImguiWindow):
     def set_renderer_fullscreen(self, fullscreen):
         self._pending_renderer_fullscreen = bool(fullscreen)
 
+    @staticmethod
+    def _get_svg_aspect_ratio(svg_path):
+        _x, _y, width, height = ElementTree.parse(svg_path).getroot().attrib["viewBox"].split()
+        return float(width) / float(height)
+
+    def get_fullscreen_layout(self):
+        desc_width = min(round(self.content_height * self._desc_aspect_ratio), self.content_width // 2)
+        return self.content_width - desc_width, desc_width
+
     def get_fullscreen_render_size(self):
-        width = self.content_width
+        width, _desc_width = self.get_fullscreen_layout()
         height = self.content_height
         smaller_side = min(width, height)
         if smaller_side <= 1024:
@@ -124,6 +134,15 @@ class Splatviz(imgui_window.ImguiWindow):
 
         scale = 1024 / smaller_side
         return round(width * scale), round(height * scale)
+
+    def _get_desc_texture(self):
+        if self._desc_tex_obj is None:
+            import cairosvg
+
+            png_bytes = cairosvg.svg2png(url=str(self._desc_svg_path), output_height=self.monitor_display_resolution[1])
+            image = np.asarray(Image.open(BytesIO(png_bytes)).convert("RGB"))
+            self._desc_tex_obj = gl_utils.Texture(image=image, bilinear=True, mipmap=True)
+        return self._desc_tex_obj
 
     def draw_frame(self):
         if self._pending_renderer_fullscreen is not None:
@@ -173,6 +192,8 @@ class Splatviz(imgui_window.ImguiWindow):
 
         # Display
         max_w = self.content_width - self.pane_w
+        if self.renderer_fullscreen:
+            max_w, desc_w = self.get_fullscreen_layout()
         max_h = self.content_height
         pos = np.array([self.pane_w + max_w / 2, max_h / 2])
         if "image" in self.result:
@@ -197,6 +218,12 @@ class Splatviz(imgui_window.ImguiWindow):
                 outline=2,
             )
             tex.draw(pos=pos, align=0.5, rint=True, color=1)
+
+        if self.renderer_fullscreen:
+            desc_tex = self._get_desc_texture()
+            desc_zoom = min(desc_w / desc_tex.width, max_h / desc_tex.height)
+            desc_pos = np.array([max_w + desc_w / 2, max_h / 2])
+            desc_tex.draw(pos=desc_pos, zoom=desc_zoom, align=0.5, rint=True)
 
         if "eval" in self.result:
             self.eval_result = self.result.eval

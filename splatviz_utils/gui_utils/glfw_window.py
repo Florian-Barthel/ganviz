@@ -36,6 +36,8 @@ class GlfwWindow:
         self.gamepad_connected = False
         self.gamepad_name = None
         self.gamepad_axes = {}
+        self.gamepad_buttons = set()
+        self.gamepad_button_presses = set()
         self._windowed_pos = None
         self._windowed_size = None
         self._windowed_decorated = True
@@ -254,9 +256,11 @@ class GlfwWindow:
         glfw.set_drop_callback(self._glfw_window, self._glfw_drop_callback)
 
     def _poll_gamepad(self):
+        previous_buttons = self.gamepad_buttons
         self.gamepad_connected = False
         self.gamepad_name = None
         self.gamepad_axes = {}
+        self.gamepad_buttons = set()
 
         for joystick_id in range(glfw.JOYSTICK_1, glfw.JOYSTICK_LAST + 1):
             if not glfw.joystick_present(joystick_id):
@@ -277,16 +281,28 @@ class GlfwWindow:
                     "left_trigger": state.axes[glfw.GAMEPAD_AXIS_LEFT_TRIGGER],
                     "right_trigger": state.axes[glfw.GAMEPAD_AXIS_RIGHT_TRIGGER],
                 }
+                self.gamepad_buttons = self._xbox_buttons(state.buttons)
                 break
 
-            axes = glfw.get_joystick_axes(joystick_id)
-            if axes is None or len(axes) < 4:
+            axes, num_axes = glfw.get_joystick_axes(joystick_id)
+            if axes is None or num_axes < 4:
                 continue
 
             self.gamepad_connected = True
             self.gamepad_name = glfw.get_joystick_name(joystick_id)
-            self.gamepad_axes = self._raw_xbox_axes(axes)
+            self.gamepad_axes = self._raw_xbox_axes(axes[:num_axes])
+            buttons, num_buttons = glfw.get_joystick_buttons(joystick_id)
+            self.gamepad_buttons = self._xbox_buttons(buttons[:num_buttons] if buttons is not None else None)
             break
+
+        self.gamepad_button_presses = self.gamepad_buttons - previous_buttons
+
+    @staticmethod
+    def _xbox_buttons(buttons):
+        if buttons is None:
+            return set()
+        button_names = {0: "a", 1: "b", 2: "x", 3: "y"}
+        return {button_names[index] for index in button_names if len(buttons) > index and buttons[index] == glfw.PRESS}
 
     @staticmethod
     def _raw_xbox_axes(axes):

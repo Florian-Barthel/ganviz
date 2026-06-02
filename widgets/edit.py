@@ -7,9 +7,6 @@ import inspect
 from splatviz_utils.gui_utils import imgui_utils
 from splatviz_utils.gui_utils.easy_imgui import label
 from splatviz_utils.gui_utils.easy_json import load_json, save_json
-from splatviz_utils.dict_utils import EasyDict
-from scene.cameras import CustomCam
-from scene.gaussian_model import GaussianModel
 from widgets.widget import Widget
 
 default_preset = """gaussian._xyz = gaussian._xyz
@@ -75,6 +72,11 @@ class EditWidget(Widget):
         self.safe_load = False
         self.preset_path = "./presets.json"
         self.history_path = "./history.json"
+        self.gamepad_presets = {
+            "a": "Default",
+            "b": "Point Cloud",
+            "x": "Random Colors",
+        }
         self.load_presets()
 
         self.editor = edit.TextEditor()
@@ -92,26 +94,12 @@ class EditWidget(Widget):
         self._cur_preset_name = ""
 
     def setup_editor(self):
-        # language = edit.TextEditor.LanguageDefinition.python()
-        # custom_identifiers = {
-        #     "gs": edit.TextEditor.Identifier(m_declaration=get_description(GaussianModel)),
-        #     "render_cam": edit.TextEditor.Identifier(m_declaration=get_description(CustomCam)),
-        #     "render": edit.TextEditor.Identifier(
-        #         m_declaration=get_description(
-        #             EasyDict(render=0, viewspace_points=0, visibility_filter=0, radii=0, alpha=0, depth=0)
-        #         )
-        #     ),
-        #     "slider": edit.TextEditor.Identifier(m_declaration=get_description(Slider)),
-        # }
-        # copy_identifiers = language.m_identifiers.copy()
-        # copy_identifiers.update(custom_identifiers)
-        # language.m_identifiers = copy_identifiers
-        # self.editor.set_language_definition(language)
         self.editor.set_text(self.presets["Default"]["edit_text"])
 
     @imgui_utils.scoped_by_object_id
     def __call__(self, show=True):
         viz = self.viz
+        self.handle_gamepad()
         if show:
             self.render_sliders()
             imgui.new_line()
@@ -124,12 +112,7 @@ class EditWidget(Widget):
                 for preset_key in sorted(self.presets.keys()):
                     clicked = imgui.menu_item_simple(preset_key)
                     if clicked:
-                        edit_text = self.presets[preset_key]["edit_text"]
-                        self.sliders = [Slider(**dict_values) for dict_values in self.presets[preset_key]["slider"]]
-
-                        if self.safe_load:
-                            edit_text = f"''' # REMOVE THIS LINE\n{edit_text}\n''' # REMOVE THIS LINE"
-                        self.editor.set_text(edit_text)
+                        self.apply_preset(preset_key)
                 imgui.end_popup()
 
             imgui.same_line(viz.button_large_w * 2)
@@ -152,7 +135,7 @@ class EditWidget(Widget):
                 line_height = self.editor.get_line_count() * (self.viz._cur_font_size + increase_font_size)
                 max_height = (self.viz._cur_font_size + increase_font_size) * 30
                 editor_height = min(line_height, max_height)
-                self.editor.render("Python Edit Code", a_size=imgui.ImVec2(viz.pane_w - 50, editor_height))
+                self.editor.render("Python Edit Code", size=imgui.ImVec2(viz.pane_w - 50, editor_height))
 
             imgui.new_line()
             label("Preset Name")
@@ -165,16 +148,29 @@ class EditWidget(Widget):
                 save_json(filename=self.preset_path, data=self.presets, indent=2)
                 self._cur_preset_name = ""
 
-            edit_text = self.editor.get_text()
-            if self.last_text != edit_text:
-                self.history[self.current_session_name] = dict(
-                    edit_text=self.editor.get_text(), slider=[vars(slider) for slider in self.sliders]
-                )
-                save_json(filename=self.history_path, data=self.history)
-            self.last_text = edit_text
+        edit_text = self.editor.get_text()
+        if self.last_text != edit_text:
+            self.history[self.current_session_name] = dict(
+                edit_text=edit_text, slider=[vars(slider) for slider in self.sliders]
+            )
+            save_json(filename=self.history_path, data=self.history)
+        self.last_text = edit_text
 
         viz.args.edit_text = self.last_text
         viz.args.slider = {slider.key: slider.value for slider in self.sliders}
+
+    def handle_gamepad(self):
+        for button, preset_name in self.gamepad_presets.items():
+            if button in self.viz.gamepad_button_presses:
+                self.apply_preset(preset_name)
+
+    def apply_preset(self, preset_name):
+        preset = self.presets[preset_name]
+        edit_text = preset["edit_text"]
+        self.sliders = [Slider(**dict_values) for dict_values in preset["slider"]]
+        if self.safe_load:
+            edit_text = f"''' # REMOVE THIS LINE\n{edit_text}\n''' # REMOVE THIS LINE"
+        self.editor.set_text(edit_text)
 
     def load_presets(self):
         if not os.path.exists(self.preset_path):

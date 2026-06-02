@@ -12,10 +12,8 @@
 
 ### 1. Clone
 
-Clone repository **recursively** in order to install glm from the diff_gaussian_rasterization package.
-
 ```bash
-git clone https://github.com/Florian-Barthel/ganviz.git --recursive
+git clone https://github.com/Florian-Barthel/ganviz.git
 cd ganviz
 ```
 
@@ -27,7 +25,6 @@ Create environment with [uv](https://docs.astral.sh/uv/getting-started/installat
 
 ```shell
 uv sync
-uv pip install .\diff-gaussian-rasterization\ --no-build-isolation
 ```
 
 Clone CGS-GAN:
@@ -97,5 +94,4 @@ Networks (EG3D).
 - 3DGS: <a href="https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/"> 3D Gaussian Splatting</a>
 - Compressing 3DGS scenes: <a href="https://fraunhoferhhi.github.io/Self-Organizing-Gaussians/">Compact 3D Scene
 Representation via Self-Organizing Gaussian Grids</a>
-- 3DGS Rasterizer with depth and alpha: <a href="https://github.com/slothfulxtx/diff-gaussian-rasterization">Diff
-rasterizer with depth and alpha</a>
+- 3DGS rasterizer: <a href="https://github.com/nerfstudio-project/gsplat">gsplat</a>
